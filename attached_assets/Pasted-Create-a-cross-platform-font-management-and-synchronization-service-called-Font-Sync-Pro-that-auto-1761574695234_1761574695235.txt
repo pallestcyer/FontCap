@@ -1,0 +1,416 @@
+Create a cross-platform font management and synchronization service called "Font Sync Pro" that automatically syncs fonts across all user devices.
+
+## Core Requirements
+
+### Technology Stack
+- **Frontend**: Electron app (supports Windows, macOS, Linux with native UI)
+- **UI Framework**: React with Tailwind CSS
+- **Backend**: Node.js with Express
+- **Database**: PostgreSQL for user data, font metadata
+- **Storage**: AWS S3 or similar for font file storage
+- **Real-time Sync**: WebSocket connections for live updates
+- **Authentication**: JWT-based auth with refresh tokens
+
+### Key Features
+
+1. **User Authentication**
+   - Sign up / Login system
+   - Email verification
+   - Password reset functionality
+   - Support for multiple devices per account
+
+2. **Initial Device Setup & Font Discovery**
+   - **First-time setup wizard** after login
+   - **Automatic font scanning** of system font directories:
+     - Windows: C:\Windows\Fonts, C:\Users\[user]\AppData\Local\Microsoft\Windows\Fonts
+     - macOS: /System/Library/Fonts, /Library/Fonts, ~/Library/Fonts
+     - Linux: /usr/share/fonts, /usr/local/share/fonts, ~/.fonts, ~/.local/share/fonts
+   - **Font cataloging process:**
+     - Display progress bar during initial scan
+     - Extract metadata from each font file (name, family, weight, style, format)
+     - Calculate file hash (SHA-256) for deduplication
+     - Show preview: "Found 347 fonts on this device"
+   - **User selection options:**
+     - "Sync all fonts from this device" (default)
+     - "Let me choose which fonts to sync" (shows selectable list)
+     - "Skip for now" (can trigger later)
+   - **Duplicate detection:**
+     - Compare file hashes with cloud library
+     - Show "X fonts already in your library, Y new fonts found"
+     - Option to skip duplicates or keep device-specific versions
+   - **Background scanning:**
+     - Periodic scans for newly installed fonts
+     - Notification: "5 new fonts detected on this device. Sync now?"
+
+3. **Font Management Dashboard**
+   - Grid/list view of all synced fonts
+   - **Font source indicators:**
+     - Badge showing which device originally contributed each font
+     - "Installed on X of Y devices" counter per font
+   - Font preview cards showing:
+     - Font name and family
+     - Preview text in the actual font
+     - File size
+     - Sync status (synced/syncing/error)
+     - Installed status on current device
+     - **Origin device** (optional tag)
+   - **Filter options:**
+     - "Already on this device" 
+     - "Not yet installed"
+     - "From this device"
+     - "From [Device Name]"
+     - By font format (TTF, OTF, WOFF, etc.)
+     - By sync status
+   - Search fonts by name/family
+   - Bulk operations (select multiple fonts)
+   - **Smart deduplication view:**
+     - Shows grouped duplicate fonts
+     - Allows keeping best version or all versions
+
+4. **Font Upload & Manual Addition**
+   - Drag-and-drop font upload (for new fonts not on system)
+   - Batch upload support
+   - Auto-detect font metadata (name, family, weight, style)
+   - Automatic installation to system font directory
+   - Require elevated permissions handling
+
+5. **Device Management Panel**
+   - List all connected devices
+   - Show device info:
+     - Device name
+     - OS type and version
+     - **Fonts contributed: X fonts**
+     - **Fonts installed: Y fonts**
+     - Last sync time
+     - Last scan time
+     - Online/offline status
+     - Storage used
+   - Ability to remove/rename devices
+   - Per-device font installation status
+   - **"Rescan this device"** button to re-check for new fonts
+
+6. **Real-time Synchronization**
+   - Auto-sync on app launch
+   - Background sync service
+   - **Bidirectional sync:**
+     - New fonts from Device A → Cloud → Device B, C, D
+     - New fonts from Device B → Cloud → Device A, C, D
+   - **Conflict resolution:**
+     - Same font name but different file hash
+     - User prompt: "Font 'Helvetica-Bold' differs between devices. Keep both versions or choose one?"
+     - Option to set rules (always keep newest, largest file, or ask)
+   - **Sync strategies:**
+     - "Sync all new fonts to this device automatically"
+     - "Ask me before installing fonts from other devices"
+     - "Only sync fonts I manually select"
+   - Bandwidth throttling options
+   - Manual sync trigger button
+   - Sync progress indicators with percentage
+   - Sync queue management
+   - **Delta sync:** Only transfer fonts that don't exist in cloud
+
+7. **Smart Font Detection & Monitoring**
+   - **File system watchers** on font directories
+   - Real-time detection when:
+     - New font installed by another app
+     - Font removed from system
+     - Font file modified
+   - **Notification types:**
+     - "New font detected: [Font Name]. Add to your cloud library?"
+     - "Font removed from this device. Keep in cloud library?"
+   - **Scheduled scans:** Configurable interval (hourly, daily, weekly)
+   - **Manual scan trigger:** "Scan for new fonts now" button
+
+8. **Duplicate Management System**
+   - **Intelligent duplicate detection:**
+     - Exact matches (same file hash)
+     - Similar fonts (same name, different version/format)
+     - Font families (group related fonts)
+   - **Duplicate resolution UI:**
+     - Side-by-side comparison
+     - Show file size, format, source device
+     - Preview rendering of each version
+     - Options:
+       - "Keep all versions (tagged by device)"
+       - "Keep [specific version]"
+       - "Merge (use best version everywhere)"
+   - **Deduplication report:**
+     - "Found 47 duplicate fonts, saving 23MB of storage"
+     - Automatic cleanup suggestions
+
+9. **Status Indicators**
+   - Global sync status in header:
+     - All synced (green checkmark)
+     - Syncing (animated spinner with progress)
+     - Scanning for fonts (magnifying glass icon)
+     - Errors (red warning icon with count)
+   - Per-font status badges:
+     - ✓ Synced across all devices
+     - 📍 On this device only
+     - ⟳ Syncing to other devices
+     - 📥 Installing to this device
+     - 📤 Uploading to cloud
+     - ⚠ Error
+     - 🔍 Newly detected
+     - 💾 Backed up to cloud
+
+10. **Error Handling & Notifications**
+    - Toast notifications for:
+      - Successful uploads
+      - New fonts detected
+      - Sync completion
+      - Errors with specific details
+      - New device connected
+    - Error detail modal showing:
+      - Error type (permission, network, corruption)
+      - Affected fonts
+      - Suggested actions
+      - Retry button
+    - Notification history/log
+
+11. **Settings Panel**
+    - **Font Discovery Settings:**
+      - Auto-scan frequency (disabled, hourly, daily, weekly)
+      - Additional directories to monitor (custom paths)
+      - File types to include (TTF, OTF, WOFF, WOFF2, etc.)
+      - Minimum file size filter (ignore tiny files)
+    - **Sync Strategy:**
+      - "Automatically sync all fonts from all devices"
+      - "Ask before syncing fonts from other devices"
+      - "Manual sync only"
+    - **Duplicate Handling:**
+      - "Automatically keep newest version"
+      - "Always ask me"
+      - "Keep all versions"
+    - Auto-sync toggle
+    - Bandwidth limits
+    - Notification preferences
+    - Font installation preferences (ask/automatic)
+    - Account management (email, password)
+    - Storage usage display with breakdown
+
+### Database Schema
+
+**Users Table:**
+- id, email, password_hash, created_at, updated_at, storage_limit
+
+**Devices Table:**
+- id, user_id, device_name, device_id (unique), os_type, os_version, last_sync, last_scan, is_active, fonts_contributed_count
+
+**Fonts Table:**
+- id, user_id, font_name, font_family, file_path (S3), file_size, file_hash (SHA-256), font_format, uploaded_at, metadata (JSON), origin_device_id, version_info
+
+**Font_Duplicates Table:**
+- id, font_id_1, font_id_2, duplicate_type (exact/similar/family), resolution_status (pending/resolved/keep_both)
+
+**Device_Fonts Table (junction):**
+- id, device_id, font_id, installation_status, installed_at, last_checked, was_present_at_scan (boolean), is_system_font (boolean)
+
+**Sync_Queue Table:**
+- id, device_id, font_id, action (install/remove/scan/detect), status, created_at, completed_at, error_message
+
+**Font_Scan_History Table:**
+- id, device_id, scan_started_at, scan_completed_at, fonts_found, new_fonts_added, errors
+
+### API Endpoints
+
+**Auth:**
+- POST /api/auth/register
+- POST /api/auth/login
+- POST /api/auth/refresh
+- POST /api/auth/logout
+
+**Fonts:**
+- GET /api/fonts (get all user fonts)
+- POST /api/fonts/upload (manual upload - multipart form data)
+- **POST /api/fonts/scan-and-register** (register fonts found during device scan)
+- **POST /api/fonts/bulk-register** (batch registration from scan results)
+- DELETE /api/fonts/:id
+- GET /api/fonts/:id/download
+- PUT /api/fonts/:id (update metadata)
+- **GET /api/fonts/duplicates** (get all duplicate groups)
+- **POST /api/fonts/resolve-duplicate** (resolve duplicate font conflict)
+- **GET /api/fonts/check-hash/:hash** (check if font already exists in cloud)
+
+**Devices:**
+- GET /api/devices (list user devices)
+- POST /api/devices/register
+- PUT /api/devices/:id (update device info)
+- DELETE /api/devices/:id
+- **POST /api/devices/:id/scan** (trigger font scan on device)
+- **GET /api/devices/:id/fonts** (get fonts specific to this device)
+
+**Sync:**
+- GET /api/sync/status (get current sync state)
+- POST /api/sync/trigger (manual sync)
+- GET /api/sync/queue/:deviceId
+- **POST /api/sync/detect** (report newly detected fonts)
+- WebSocket /ws/sync (real-time updates)
+
+### Electron Main Process Features
+
+1. **System Integration:**
+   - System tray icon with quick actions
+   - Auto-start on system boot option
+   - Native notifications
+   - Deep linking for font:// protocol
+
+2. **Background Service:**
+   - Run in background when window closed
+   - Periodic sync checks
+   - **File system watchers on font directories**
+   - **Scheduled font scanning**
+   - Auto-update mechanism
+
+3. **Font Discovery Engine:**
+   - **Recursive directory scanning**
+   - **Font file parsing** (extract metadata without installing)
+   - **Hash calculation** for deduplication
+   - **Parallel processing** for faster scans
+   - **Caching** scan results for performance
+   - **Differential scanning** (only check changed files)
+
+4. **Font Installation:**
+   - Native font installation using OS-specific APIs
+   - Request admin permissions when needed
+   - Validate font files before installation
+   - Cleanup on font removal
+   - **Verify font not already installed before syncing**
+
+### UI Layout
+
+**Main Window:**
+- **Header:** 
+  - Logo/app name
+  - Global sync status indicator
+  - **"Scan for fonts" button**
+  - Search bar
+  - User avatar/menu
+  - Settings icon
+
+- **Sidebar:**
+  - All Fonts (count)
+  - **On This Device (count)**
+  - **Not Installed Here (count)**
+  - Recently Added
+  - Syncing (count)
+  - **Duplicates (count)**
+  - Errors (count)
+  - Devices
+  - Settings
+
+- **Main Content Area:**
+  - Font grid/list with filters
+  - **Device origin badges on each font**
+  - Bulk action toolbar (when fonts selected)
+  - Empty state with upload prompt or "Scan fonts" prompt
+
+- **Footer:**
+  - Storage usage bar
+  - Last sync time
+  - **Last scan time**
+  - Quick sync button
+
+**First-Time Setup Modal:**
+- Welcome screen
+- "Scanning your fonts..." progress bar
+- Results summary: "Found X fonts, Y already in cloud, Z new"
+- Selection interface with preview
+- "Sync selected fonts" confirmation
+
+### Security Considerations
+
+- Encrypt font files during transit (HTTPS/WSS)
+- Sanitize font file uploads (validate format, scan for malware)
+- **Validate font files during scanning** (prevent malicious files)
+- Rate limiting on uploads
+- Secure credential storage (OS keychain integration)
+- File hash verification to prevent corruption
+- Input validation on all endpoints
+- **Sandboxed font parsing** (prevent font vulnerabilities)
+
+### Performance Optimizations
+
+- Lazy load font previews
+- Virtual scrolling for large font libraries
+- Delta sync (only sync changes, not entire library)
+- **Incremental scanning** (only scan changed directories)
+- **Hash comparison before upload** (skip if font exists in cloud)
+- Compress font files during transit
+- CDN for font file distribution
+- Local caching of font metadata
+- Background sync throttling during active use
+- **Worker threads for font scanning** (non-blocking UI)
+- **Batch API calls** during initial scan
+
+### Error Scenarios to Handle
+
+- Network disconnection during sync
+- Insufficient disk space
+- Permission denied for font installation
+- **Permission denied for scanning directories**
+- Corrupted font files
+- **Font file locked by another process**
+- Duplicate font detection
+- Font already installed by another app
+- Account storage limit reached
+- **Scan interrupted or cancelled**
+- **Invalid font files in system directories**
+
+### First-Time User Experience Flow
+
+1. **User creates account & logs in**
+2. **Welcome modal:** "Let's find your fonts"
+3. **Permission request:** (if needed for scanning directories)
+4. **Scanning progress:** Real-time count of fonts found
+5. **Results screen:**
+   - Total fonts found: 347
+   - Already in your cloud: 0 (first device)
+   - New fonts to add: 347
+   - Storage required: 156 MB
+6. **Selection screen:** (if user chose "let me choose")
+   - Scrollable list with previews
+   - Select/deselect all
+   - Filter by font family
+7. **Upload progress:** Batch upload with progress
+8. **Completion:** "Your fonts are now synced!"
+9. **Next device setup:**
+   - Scans device
+   - "Found 412 fonts on this device"
+   - "347 already in your library"
+   - "65 new fonts detected"
+   - "Sync new fonts to cloud?" → Yes/No/Choose
+
+## Deliverables
+
+1. Fully functional Electron app with installer for all three platforms
+2. Backend API with all endpoints implemented
+3. Database with proper migrations
+4. WebSocket server for real-time sync
+5. **Font scanning and detection engine**
+6. **Duplicate detection and resolution system**
+7. Comprehensive error handling
+8. User-friendly onboarding flow with font discovery
+9. Settings panel with all configuration options
+10. Device management interface
+11. Font preview generation
+12. System tray integration
+13. **File system watchers for real-time detection**
+
+## Testing Requirements
+
+- Font installation on all OS platforms
+- **Font scanning on all OS platforms**
+- Multi-device sync scenarios
+- **Initial device setup with existing fonts**
+- Conflict resolution
+- **Duplicate detection accuracy**
+- Large libraries (1000+ fonts)
+- Large file uploads (>50MB fonts)
+- Network interruption handling
+- Concurrent sync operations
+- Permission handling on different OS versions
+- **Background scanning performance impact**
+- **Font file parsing accuracy**
+
+Build this as a production-ready application with clean, maintainable code, proper error handling, and a polished user interface. The font discovery and automatic scanning features should feel seamless and magical - users should never have to manually upload fonts that already exist on their devices.
