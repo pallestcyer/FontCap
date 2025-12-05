@@ -1,12 +1,32 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { pool } = require('../config/database');
+const rateLimit = require('express-rate-limit');
+const { supabase } = require('../config/database');
 const { jwtSecret, jwtRefreshSecret, jwtExpiresIn, jwtRefreshExpiresIn } = require('../config/auth');
 
 const router = express.Router();
 
-router.post('/register', async (req, res) => {
+// Rate limiting for auth endpoints to prevent brute force attacks
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 attempts per window
+  message: { error: 'Too many authentication attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Stricter limiter for login specifically
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 login attempts per window
+  message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true, // Don't count successful logins
+});
+
+router.post('/register', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -18,18 +38,30 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
-    if (existingUser.rows.length > 0) {
+    // Check if user exists
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (existingUser) {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const result = await pool.query(
-      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, created_at',
-      [email, passwordHash]
-    );
 
-    const user = result.rows[0];
+    const { data: user, error } = await supabase
+      .from('users')
+      .insert({ email, password_hash: passwordHash })
+      .select('id, email, created_at')
+      .single();
+
+    if (error) {
+      console.error('Insert error:', error);
+      return res.status(500).json({ error: 'Failed to create user' });
+    }
+
     const accessToken = jwt.sign({ userId: user.id, email: user.email }, jwtSecret, { expiresIn: jwtExpiresIn });
     const refreshToken = jwt.sign({ userId: user.id }, jwtRefreshSecret, { expiresIn: jwtRefreshExpiresIn });
 
@@ -45,7 +77,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -53,12 +85,16 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const result = await pool.query('SELECT id, email, password_hash FROM users WHERE email = $1', [email]);
-    if (result.rows.length === 0) {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, email, password_hash')
+      .eq('email', email)
+      .single();
+
+    if (error || !user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const user = result.rows[0];
     const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -79,7 +115,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', authLimiter, async (req, res) => {
   try {
     const { refreshToken } = req.body;
 
@@ -87,24 +123,30 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: 'Refresh token required' });
     }
 
-    jwt.verify(refreshToken, jwtRefreshSecret, async (err, decoded) => {
-      if (err) {
-        return res.status(403).json({ error: 'Invalid refresh token' });
-      }
+    // Use async/await pattern instead of callback to ensure proper response handling
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, jwtRefreshSecret);
+    } catch (jwtError) {
+      return res.status(403).json({ error: 'Invalid refresh token' });
+    }
 
-      const result = await pool.query('SELECT id, email FROM users WHERE id = $1', [decoded.userId]);
-      if (result.rows.length === 0) {
-        return res.status(404).json({ error: 'User not found' });
-      }
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, email')
+      .eq('id', decoded.userId)
+      .single();
 
-      const user = result.rows[0];
-      const accessToken = jwt.sign({ userId: user.id, email: user.email }, jwtSecret, { expiresIn: jwtExpiresIn });
+    if (error || !user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
-      res.json({ accessToken });
-    });
+    const accessToken = jwt.sign({ userId: user.id, email: user.email }, jwtSecret, { expiresIn: jwtExpiresIn });
+
+    return res.json({ accessToken });
   } catch (error) {
     console.error('Token refresh error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

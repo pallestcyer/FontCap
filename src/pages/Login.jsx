@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import fontCapLogo from '/FontCap.svg';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
   const { login } = useAuthStore();
   const navigate = useNavigate();
 
@@ -17,33 +18,33 @@ export default function Login() {
     setLoading(true);
 
     const result = await login(email, password);
-    
+
     if (result.success) {
       navigate('/');
     } else {
       setError(result.error);
     }
-    
+
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+    <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-lg border border-neutral-200 p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Font Sync Pro</h1>
-          <p className="text-gray-600">Sign in to sync your fonts</p>
+          <img src={fontCapLogo} alt="FontCap" className="h-12 mx-auto mb-4" />
+          <p className="text-neutral-500 font-serif">Sign in to sync your fonts</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <div className="bg-black text-white px-4 py-3 rounded-lg text-sm">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-black mb-2">
               Email
             </label>
             <input
@@ -56,7 +57,7 @@ export default function Login() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-black mb-2">
               Password
             </label>
             <input
@@ -71,15 +72,15 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full btn-primary disabled:opacity-50"
+            className="w-full btn-primary btn-press disabled:opacity-50"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-gray-600">
+        <p className="mt-6 text-center text-sm text-neutral-500 font-serif">
           Don't have an account?{' '}
-          <Link to="/register" className="text-primary-600 hover:text-primary-700 font-medium">
+          <Link to="/register" className="text-blue-600 hover:text-blue-700 font-semibold font-sans">
             Sign up
           </Link>
         </p>

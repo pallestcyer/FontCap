@@ -23,6 +23,21 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  base: './',
+  build: {
+    // Use relative paths for assets
+    assetsDir: 'assets',
+    rollupOptions: {
+      output: {
+        // Use IIFE format instead of ES modules to avoid CORS issues in Electron
+        format: 'iife',
+        inlineDynamicImports: true,
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: 'assets/[name].[ext]'
+      }
+    }
+  },
   server: {
     port: 5173,
   },

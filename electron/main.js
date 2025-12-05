@@ -1,17 +1,81 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, Notification } = require('electron');
 const path = require('path');
+const os = require('os');
+const fs = require('fs').promises;
+const crypto = require('crypto');
 const fontScanner = require('./services/fontScanner');
 const fileWatcher = require('./services/fileWatcher');
+const fontInstaller = require('./services/fontInstaller');
+const FontUploader = require('./services/fontUploader');
+
+const fontUploader = new FontUploader();
+
+// Get or create a stable device ID
+// Uses multiple fallback locations to ensure stability across app updates
+async function getStableDeviceId() {
+  // Primary location: Application Support/FontCap (persists across app updates)
+  const primaryDir = path.join(app.getPath('appData'), 'FontCap');
+  const primaryFile = path.join(primaryDir, 'device-id.txt');
+
+  // Legacy location: userData/config (for backwards compatibility)
+  const legacyDir = path.join(app.getPath('userData'), 'config');
+  const legacyFile = path.join(legacyDir, 'device-id.txt');
+
+  // Try to read from primary location first
+  try {
+    const existingId = await fs.readFile(primaryFile, 'utf-8');
+    const id = existingId.trim();
+    if (id && id.length > 0) {
+      return id;
+    }
+  } catch (error) {
+    // Primary doesn't exist, check legacy
+  }
+
+  // Try legacy location
+  try {
+    const legacyId = await fs.readFile(legacyFile, 'utf-8');
+    const id = legacyId.trim();
+    if (id && id.length > 0) {
+      // Migrate to primary location
+      await fs.mkdir(primaryDir, { recursive: true });
+      await fs.writeFile(primaryFile, id, 'utf-8');
+      return id;
+    }
+  } catch (error) {
+    // Legacy doesn't exist either
+  }
+
+  // Generate new ID based on hardware identifiers for better stability
+  // Fallback to UUID if hardware info isn't available
+  let newId;
+  try {
+    // Create a hash based on machine-specific info
+    const machineInfo = `${os.hostname()}-${os.platform()}-${os.arch()}-${os.cpus()[0]?.model || 'unknown'}`;
+    newId = crypto.createHash('sha256').update(machineInfo).digest('hex').substring(0, 36);
+    // Format as UUID-like string
+    newId = `${newId.slice(0,8)}-${newId.slice(8,12)}-${newId.slice(12,16)}-${newId.slice(16,20)}-${newId.slice(20,32)}`;
+  } catch (e) {
+    newId = crypto.randomUUID();
+  }
+
+  // Save to primary location
+  await fs.mkdir(primaryDir, { recursive: true });
+  await fs.writeFile(primaryFile, newId, 'utf-8');
+
+  return newId;
+}
 
 let mainWindow;
 let tray;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1000,
-    minHeight: 700,
+    width: 420,
+    height: 700,
+    minWidth: 360,
+    minHeight: 500,
+    maxWidth: 500,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -20,12 +84,33 @@ function createWindow() {
     show: false,
   });
 
-  if (process.env.NODE_ENV === 'development') {
+  // Use app.isPackaged to reliably detect production vs development
+  if (!app.isPackaged) {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    // In packaged app, load from dist folder
+    const indexPath = path.join(__dirname, '../dist/index.html');
+    console.log('Loading from:', indexPath);
+    mainWindow.loadFile(indexPath).catch(err => {
+      console.error('Failed to load index.html:', err);
+    });
   }
+
+  // Add error handling for page load failures
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('Page failed to load:', errorCode, errorDescription);
+  });
+
+  // Log when page finishes loading
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('Page finished loading');
+  });
+
+  // Log console messages from renderer
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    console.log('Renderer:', message);
+  });
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -40,26 +125,33 @@ function createWindow() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, '../public/icon.png');
-  
-  tray = new Tray(iconPath);
-  
-  const contextMenu = Menu.buildFromTemplate([
-    { label: 'Show Font Sync Pro', click: () => mainWindow.show() },
-    { label: 'Scan for Fonts', click: () => handleScanFonts() },
-    { type: 'separator' },
-    { label: 'Quit', click: () => {
-      app.isQuitting = true;
-      app.quit();
-    }}
-  ]);
+  try {
+    // Use properly sized tray icons (16x16 for standard, @2x handled automatically)
+    const iconPath = app.isPackaged
+      ? path.join(__dirname, '../build/trayIcon.png')
+      : path.join(__dirname, '../public/trayIcon.png');
 
-  tray.setToolTip('Font Sync Pro');
-  tray.setContextMenu(contextMenu);
-  
-  tray.on('click', () => {
-    mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
-  });
+    tray = new Tray(iconPath);
+
+    const contextMenu = Menu.buildFromTemplate([
+      { label: 'Show FontCap', click: () => mainWindow.show() },
+      { label: 'Scan for Fonts', click: () => handleScanFonts() },
+      { type: 'separator' },
+      { label: 'Quit', click: () => {
+        app.isQuitting = true;
+        app.quit();
+      }}
+    ]);
+
+    tray.setToolTip('FontCap');
+    tray.setContextMenu(contextMenu);
+
+    tray.on('click', () => {
+      mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+    });
+  } catch (error) {
+    console.log('Tray icon not loaded - continuing without system tray');
+  }
 }
 
 ipcMain.handle('scan-fonts', async (event, directories) => {
@@ -108,13 +200,100 @@ ipcMain.handle('stop-file-watcher', () => {
   return { success: true };
 });
 
-ipcMain.handle('get-device-info', () => {
-  const os = require('os');
+ipcMain.handle('get-device-info', async () => {
+  const stableId = await getStableDeviceId();
   return {
+    deviceId: stableId,
     deviceName: os.hostname(),
     osType: os.platform(),
     osVersion: os.release(),
   };
+});
+
+// Upload fonts to Supabase Storage
+ipcMain.handle('upload-fonts', async (event, { fonts, userId }) => {
+  try {
+    const results = await fontUploader.uploadFonts(fonts, userId, (progress) => {
+      mainWindow.webContents.send('upload-progress', progress);
+    });
+    return { success: true, ...results };
+  } catch (error) {
+    console.error('Font upload error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Download and install a font from Supabase Storage
+ipcMain.handle('download-and-install-font', async (event, { fontId, fontName, downloadUrl }) => {
+  try {
+    // Create temp directory for download
+    const tempDir = path.join(os.tmpdir(), 'fontcap-downloads');
+    await fs.mkdir(tempDir, { recursive: true });
+
+    const tempPath = path.join(tempDir, fontName);
+
+    // Download font file from signed URL
+    const downloadResult = await fontUploader.downloadFont(downloadUrl, tempPath);
+
+    if (!downloadResult.success) {
+      return downloadResult;
+    }
+
+    // Install font to system
+    const installResult = await fontInstaller.installFont(tempPath, fontName);
+
+    // Clean up temp file
+    try {
+      await fs.unlink(tempPath);
+    } catch (cleanupError) {
+      console.warn('Could not clean up temp file:', cleanupError.message);
+    }
+
+    if (installResult.success) {
+      new Notification({
+        title: 'Font Installed',
+        body: `${fontName} has been installed successfully`,
+      }).show();
+    }
+
+    return installResult;
+  } catch (error) {
+    console.error('Font download and install error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Check if font is installed
+ipcMain.handle('is-font-installed', async (event, fontName) => {
+  try {
+    const isInstalled = await fontInstaller.isInstalled(fontName);
+    return { success: true, isInstalled };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Batch check which fonts are already installed locally
+ipcMain.handle('check-installed-fonts', async (event, fontNames) => {
+  try {
+    const results = {};
+    for (const fontName of fontNames) {
+      results[fontName] = await fontInstaller.isInstalled(fontName);
+    }
+    return { success: true, installed: results };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get font install directory
+ipcMain.handle('get-font-install-dir', () => {
+  try {
+    const installDir = fontInstaller.getInstallDirectory();
+    return { success: true, installDir };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 });
 
 async function handleScanFonts() {

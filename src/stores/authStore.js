@@ -1,78 +1,139 @@
 import { create } from 'zustand';
-import axios from 'axios';
+import { supabase } from '../config/supabase';
 
-const API_URL = 'http://localhost:3000/api';
-
-export const useAuthStore = create((set) => ({
+export const useAuthStore = create((set, get) => ({
   user: null,
+  session: null,
   isAuthenticated: false,
-  accessToken: null,
-  refreshToken: null,
+  loading: true,
+
+  // Initialize auth state from Supabase session
+  initialize: async () => {
+    try {
+      // Get current session
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error('Error getting session:', error);
+        set({ loading: false });
+        return;
+      }
+
+      if (session) {
+        set({
+          user: { id: session.user.id, email: session.user.email },
+          session,
+          isAuthenticated: true,
+          loading: false,
+        });
+      } else {
+        set({ loading: false });
+      }
+
+      // Listen for auth changes
+      supabase.auth.onAuthStateChange((event, session) => {
+        if (session) {
+          set({
+            user: { id: session.user.id, email: session.user.email },
+            session,
+            isAuthenticated: true,
+          });
+        } else {
+          set({
+            user: null,
+            session: null,
+            isAuthenticated: false,
+          });
+        }
+      });
+    } catch (error) {
+      console.error('Auth initialization error:', error);
+      set({ loading: false });
+    }
+  },
 
   login: async (email, password) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/login`, { email, password });
-      const { user, accessToken, refreshToken } = response.data;
-      
-      set({
-        user,
-        isAuthenticated: true,
-        accessToken,
-        refreshToken,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
-      
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
-      
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      set({
+        user: { id: data.user.id, email: data.user.email },
+        session: data.session,
+        isAuthenticated: true,
+      });
+
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.response?.data?.error || 'Login failed' };
+      console.error('Login error:', error);
+      return { success: false, error: 'Login failed' };
     }
   },
 
   register: async (email, password) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/register`, { email, password });
-      const { user, accessToken, refreshToken } = response.data;
-      
-      set({
-        user,
-        isAuthenticated: true,
-        accessToken,
-        refreshToken,
+      if (password.length < 6) {
+        return { success: false, error: 'Password must be at least 6 characters' };
+      }
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
       });
-      
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
-      
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      // Check if email confirmation is required
+      if (data.user && !data.session) {
+        return {
+          success: true,
+          message: 'Please check your email to confirm your account',
+          needsConfirmation: true
+        };
+      }
+
+      if (data.session) {
+        set({
+          user: { id: data.user.id, email: data.user.email },
+          session: data.session,
+          isAuthenticated: true,
+        });
+      }
+
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.response?.data?.error || 'Registration failed' };
+      console.error('Registration error:', error);
+      return { success: false, error: 'Registration failed' };
     }
   },
 
-  logout: () => {
-    set({
-      user: null,
-      isAuthenticated: false,
-      accessToken: null,
-      refreshToken: null,
-    });
-    
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-  },
-
-  checkAuth: () => {
-    const accessToken = localStorage.getItem('accessToken');
-    const refreshToken = localStorage.getItem('refreshToken');
-    
-    if (accessToken && refreshToken) {
+  logout: async () => {
+    try {
+      await supabase.auth.signOut();
       set({
-        isAuthenticated: true,
-        accessToken,
-        refreshToken,
+        user: null,
+        session: null,
+        isAuthenticated: false,
       });
+    } catch (error) {
+      console.error('Logout error:', error);
     }
   },
+
+  // For backward compatibility - now just calls initialize
+  checkAuth: () => {
+    get().initialize();
+  },
+
+  getUser: () => get().user,
+
+  getSession: () => get().session,
 }));

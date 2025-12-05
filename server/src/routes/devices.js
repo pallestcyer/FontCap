@@ -1,20 +1,45 @@
 const express = require('express');
-const { pool } = require('../config/database');
+const { supabase } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT d.*, 
-        (SELECT COUNT(*) FROM device_fonts df WHERE df.device_id = d.id) as fonts_installed_count
-      FROM devices d
-      WHERE d.user_id = $1
-      ORDER BY d.created_at DESC
-    `, [req.user.userId]);
+    const { data: devices, error } = await supabase
+      .from('devices')
+      .select('*')
+      .eq('user_id', req.user.userId)
+      .order('created_at', { ascending: false });
 
-    res.json({ devices: result.rows });
+    if (error) throw error;
+
+    if (!devices || devices.length === 0) {
+      return res.json({ devices: [] });
+    }
+
+    // Get all font counts in a single aggregated query instead of N+1 queries
+    const deviceIds = devices.map(d => d.id);
+    const { data: fontCounts, error: countError } = await supabase
+      .from('device_fonts')
+      .select('device_id')
+      .in('device_id', deviceIds);
+
+    if (countError) throw countError;
+
+    // Count fonts per device from the result
+    const countMap = {};
+    (fontCounts || []).forEach(df => {
+      countMap[df.device_id] = (countMap[df.device_id] || 0) + 1;
+    });
+
+    // Merge counts with devices
+    const devicesWithCounts = devices.map(device => ({
+      ...device,
+      fonts_installed_count: countMap[device.id] || 0
+    }));
+
+    res.json({ devices: devicesWithCounts });
   } catch (error) {
     console.error('Error fetching devices:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -29,32 +54,57 @@ router.post('/register', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Device name and ID are required' });
     }
 
-    const existing = await pool.query('SELECT id FROM devices WHERE device_id = $1', [deviceId]);
-    
-    if (existing.rows.length > 0) {
-      await pool.query(`
-        UPDATE devices 
-        SET device_name = $1, os_type = $2, os_version = $3, is_active = true, last_sync = CURRENT_TIMESTAMP
-        WHERE device_id = $4
-        RETURNING *
-      `, [deviceName, osType, osVersion, deviceId]);
-      
-      return res.json({ 
+    // Check if device exists (don't use .single() to avoid error on no match)
+    const { data: existingDevices } = await supabase
+      .from('devices')
+      .select('*')
+      .eq('device_id', deviceId);
+
+    const existing = existingDevices && existingDevices.length > 0 ? existingDevices[0] : null;
+
+    if (existing) {
+      // Update existing device and associate with current user
+      const { data: updated, error } = await supabase
+        .from('devices')
+        .update({
+          user_id: req.user.userId,
+          device_name: deviceName,
+          os_type: osType,
+          os_version: osVersion,
+          is_active: true,
+          last_sync: new Date().toISOString()
+        })
+        .eq('device_id', deviceId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return res.json({
         message: 'Device updated successfully',
-        device: existing.rows[0],
+        device: updated,
         isNewDevice: false
       });
     }
 
-    const result = await pool.query(`
-      INSERT INTO devices (user_id, device_name, device_id, os_type, os_version)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING *
-    `, [req.user.userId, deviceName, deviceId, osType, osVersion]);
+    // Register new device
+    const { data: newDevice, error } = await supabase
+      .from('devices')
+      .insert({
+        user_id: req.user.userId,
+        device_name: deviceName,
+        device_id: deviceId,
+        os_type: osType,
+        os_version: osVersion
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
 
     res.status(201).json({
       message: 'Device registered successfully',
-      device: result.rows[0],
+      device: newDevice,
       isNewDevice: true
     });
   } catch (error) {
@@ -65,22 +115,28 @@ router.post('/register', authenticateToken, async (req, res) => {
 
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
-    const { deviceName, lastScan } = req.body;
+    const { deviceName, lastScan, syncEnabled } = req.body;
 
-    const result = await pool.query(`
-      UPDATE devices 
-      SET device_name = COALESCE($1, device_name), 
-          last_scan = COALESCE($2, last_scan),
-          last_sync = CURRENT_TIMESTAMP
-      WHERE id = $3 AND user_id = $4
-      RETURNING *
-    `, [deviceName, lastScan, req.params.id, req.user.userId]);
+    const updates = {
+      last_sync: new Date().toISOString()
+    };
+    if (deviceName !== undefined) updates.device_name = deviceName;
+    if (lastScan !== undefined) updates.last_scan = lastScan;
+    if (syncEnabled !== undefined) updates.sync_enabled = syncEnabled;
 
-    if (result.rows.length === 0) {
+    const { data: device, error } = await supabase
+      .from('devices')
+      .update(updates)
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.userId)
+      .select()
+      .single();
+
+    if (error || !device) {
       return res.status(404).json({ error: 'Device not found' });
     }
 
-    res.json({ device: result.rows[0] });
+    res.json({ device });
   } catch (error) {
     console.error('Error updating device:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -89,12 +145,15 @@ router.put('/:id', authenticateToken, async (req, res) => {
 
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(
-      'DELETE FROM devices WHERE id = $1 AND user_id = $2 RETURNING *',
-      [req.params.id, req.user.userId]
-    );
+    const { data: device, error } = await supabase
+      .from('devices')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.userId)
+      .select()
+      .single();
 
-    if (result.rows.length === 0) {
+    if (error || !device) {
       return res.status(404).json({ error: 'Device not found' });
     }
 
@@ -107,15 +166,27 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
 router.get('/:id/fonts', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT f.*, df.installation_status, df.installed_at, df.is_system_font
-      FROM fonts f
-      JOIN device_fonts df ON f.id = df.font_id
-      WHERE df.device_id = $1 AND f.user_id = $2
-      ORDER BY df.installed_at DESC
-    `, [req.params.id, req.user.userId]);
+    const { data: deviceFonts, error } = await supabase
+      .from('device_fonts')
+      .select(`
+        installation_status,
+        installed_at,
+        is_system_font,
+        fonts (*)
+      `)
+      .eq('device_id', req.params.id);
 
-    res.json({ fonts: result.rows });
+    if (error) throw error;
+
+    // Flatten the response
+    const fonts = deviceFonts.map(df => ({
+      ...df.fonts,
+      installation_status: df.installation_status,
+      installed_at: df.installed_at,
+      is_system_font: df.is_system_font
+    })).filter(f => f.user_id === req.user.userId);
+
+    res.json({ fonts });
   } catch (error) {
     console.error('Error fetching device fonts:', error);
     res.status(500).json({ error: 'Internal server error' });

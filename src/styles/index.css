@@ -9,9 +9,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: "Acumin Pro Wide", Inter, system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -23,18 +21,206 @@ body {
 
 @layer components {
   .btn-primary {
-    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-lg transition-colors;
+    @apply bg-black hover:bg-neutral-800 text-white font-semibold py-2 px-4 rounded-lg transition-colors;
   }
-  
+
   .btn-secondary {
-    @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors;
+    @apply bg-white hover:bg-neutral-100 text-black font-semibold py-2 px-4 rounded-lg transition-colors border border-black;
   }
-  
+
   .input-field {
-    @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none;
+    @apply w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none;
   }
-  
+
   .card {
     @apply bg-white rounded-lg shadow-md p-6;
   }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Staggered fade-in animation for font cards */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.3s ease-out forwards;
+  opacity: 0;
+}
+
+/* Stagger delay utilities */
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 30ms; }
+.stagger-3 { animation-delay: 60ms; }
+.stagger-4 { animation-delay: 90ms; }
+.stagger-5 { animation-delay: 120ms; }
+.stagger-6 { animation-delay: 150ms; }
+.stagger-7 { animation-delay: 180ms; }
+.stagger-8 { animation-delay: 210ms; }
+.stagger-9 { animation-delay: 240ms; }
+.stagger-10 { animation-delay: 270ms; }
+
+/* Button press effect */
+.btn-press {
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* Nav icon hover effect */
+.nav-icon {
+  transition: transform 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.nav-icon:hover {
+  transform: scale(1.05);
+}
+
+.nav-icon:active {
+  transform: scale(0.95);
+}
+
+/* Sync status pulse */
+@keyframes syncPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.7;
+  }
+}
+
+.animate-sync-pulse {
+  animation: syncPulse 1.5s ease-in-out infinite;
+}
+
+/* Progress bar shimmer effect */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.progress-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Card hover lift effect */
+.card-hover {
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Upload zone animated border */
+@keyframes dashMove {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 20;
+  }
+}
+
+.upload-zone-active {
+  position: relative;
+}
+
+/* Filter tab sliding indicator */
+.tab-indicator {
+  transition: transform 0.2s ease, width 0.2s ease;
+}
+
+/* Skeleton loader animation */
+@keyframes skeletonPulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #e5e5e5 25%, #f0f0f0 50%, #e5e5e5 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+/* Download button animation */
+@keyframes downloadBounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(2px);
+  }
+}
+
+.btn-download:hover {
+  animation: downloadBounce 0.4s ease infinite;
+}
+
+/* Ripple effect for sync indicator */
+@keyframes ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+.sync-ripple {
+  position: relative;
+}
+
+.sync-ripple::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: currentColor;
+  animation: ripple 1.5s ease-out infinite;
 }
