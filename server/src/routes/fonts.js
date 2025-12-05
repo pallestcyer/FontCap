@@ -3,29 +3,17 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const crypto = require('crypto');
-const { pool } = require('../config/database');
+const { supabase } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../../uploads/fonts');
-    try {
-      await fs.mkdir(uploadDir, { recursive: true });
-      cb(null, uploadDir);
-    } catch (error) {
-      cb(error);
-    }
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Use memory storage for multer since we'll upload directly to Supabase
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
   fileFilter: (req, file, cb) => {
     const allowedExtensions = ['.ttf', '.otf', '.woff', '.woff2'];
     const ext = path.extname(file.originalname).toLowerCase();
@@ -37,79 +25,109 @@ const upload = multer({
   }
 });
 
-async function calculateFileHash(filePath) {
-  const fileBuffer = await fs.readFile(filePath);
-  return crypto.createHash('sha256').update(fileBuffer).digest('hex');
+function calculateBufferHash(buffer) {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
+// Get all fonts for user
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT f.*, d.device_name as origin_device_name,
-        (SELECT COUNT(*) FROM device_fonts df WHERE df.font_id = f.id) as installed_on_devices
-      FROM fonts f
-      LEFT JOIN devices d ON f.origin_device_id = d.id
-      WHERE f.user_id = $1
-      ORDER BY f.uploaded_at DESC
-    `, [req.user.userId]);
+    const { data: fonts, error } = await supabase
+      .from('fonts')
+      .select(`
+        *,
+        devices!origin_device_id (device_name)
+      `)
+      .eq('user_id', req.user.userId)
+      .order('uploaded_at', { ascending: false });
 
-    res.json({ fonts: result.rows });
+    if (error) throw error;
+
+    // Transform to include origin_device_name
+    const transformedFonts = fonts.map(font => ({
+      ...font,
+      origin_device_name: font.devices?.device_name || null
+    }));
+
+    res.json({ fonts: transformedFonts });
   } catch (error) {
     console.error('Error fetching fonts:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+// Upload a font file
 router.post('/upload', authenticateToken, upload.single('font'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No font file provided' });
     }
 
-    const filePath = req.file.path;
-    const fileHash = await calculateFileHash(filePath);
-    
-    const existing = await pool.query(
-      'SELECT id FROM fonts WHERE file_hash = $1 AND user_id = $2',
-      [fileHash, req.user.userId]
-    );
-    if (existing.rows.length > 0) {
-      await fs.unlink(filePath);
+    const fileBuffer = req.file.buffer;
+    const fileHash = calculateBufferHash(fileBuffer);
+
+    // Check if font already exists for this user
+    const { data: existing } = await supabase
+      .from('fonts')
+      .select('id')
+      .eq('file_hash', fileHash)
+      .eq('user_id', req.user.userId)
+      .single();
+
+    if (existing) {
       return res.status(400).json({ error: 'Font already exists in your library' });
     }
 
+    // Generate unique storage path
+    const uniqueId = crypto.randomUUID();
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    const storagePath = `${req.user.userId}/${uniqueId}${ext}`;
+
+    // Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from('fonts')
+      .upload(storagePath, fileBuffer, {
+        contentType: req.file.mimetype,
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError);
+      return res.status(500).json({ error: 'Failed to upload font file' });
+    }
+
+    // Save font metadata to database
     const fontData = {
-      fontName: req.body.fontName || req.file.originalname,
-      fontFamily: req.body.fontFamily || '',
-      fileSize: req.file.size,
-      fontFormat: path.extname(req.file.originalname).substring(1).toUpperCase()
+      user_id: req.user.userId,
+      font_name: req.body.fontName || req.file.originalname,
+      font_family: req.body.fontFamily || '',
+      storage_path: storagePath,
+      file_size: req.file.size,
+      file_hash: fileHash,
+      font_format: ext.substring(1).toUpperCase(),
+      metadata: { originalName: req.file.originalname }
     };
 
-    const result = await pool.query(`
-      INSERT INTO fonts (user_id, font_name, font_family, file_path, file_size, file_hash, font_format, metadata)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *
-    `, [
-      req.user.userId,
-      fontData.fontName,
-      fontData.fontFamily,
-      filePath,
-      fontData.fileSize,
-      fileHash,
-      fontData.fontFormat,
-      JSON.stringify({ originalName: req.file.originalname })
-    ]);
+    const { data: font, error: insertError } = await supabase
+      .from('fonts')
+      .insert(fontData)
+      .select()
+      .single();
 
-    res.status(201).json({ font: result.rows[0], message: 'Font uploaded successfully' });
+    if (insertError) {
+      // Clean up uploaded file on error
+      await supabase.storage.from('fonts').remove([storagePath]);
+      throw insertError;
+    }
+
+    res.status(201).json({ font, message: 'Font uploaded successfully' });
   } catch (error) {
     console.error('Error uploading font:', error);
-    if (req.file) {
-      await fs.unlink(req.file.path).catch(() => {});
-    }
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+// Bulk register fonts (for scanning local fonts)
 router.post('/bulk-register', authenticateToken, async (req, res) => {
   try {
     const { fonts, deviceId } = req.body;
@@ -122,75 +140,108 @@ router.post('/bulk-register', authenticateToken, async (req, res) => {
     const duplicates = [];
 
     for (const fontData of fonts) {
-      const existing = await pool.query(
-        'SELECT id FROM fonts WHERE file_hash = $1 AND user_id = $2',
-        [fontData.fileHash, req.user.userId]
-      );
-      
-      if (existing.rows.length > 0) {
-        duplicates.push({ fontName: fontData.fontName, fontId: existing.rows[0].id });
-        
+      // Check if font already exists
+      const { data: existing } = await supabase
+        .from('fonts')
+        .select('id')
+        .eq('file_hash', fontData.fileHash)
+        .eq('user_id', req.user.userId)
+        .single();
+
+      if (existing) {
+        duplicates.push({ fontName: fontData.fontName, fontId: existing.id });
+
+        // Associate with device
         if (deviceId) {
-          await pool.query(`
-            INSERT INTO device_fonts (device_id, font_id, was_present_at_scan, is_system_font)
-            VALUES ($1, $2, true, true)
-            ON CONFLICT (device_id, font_id) DO NOTHING
-          `, [deviceId, existing.rows[0].id]);
+          await supabase
+            .from('device_fonts')
+            .upsert({
+              device_id: deviceId,
+              font_id: existing.id,
+              was_present_at_scan: true,
+              is_system_font: true
+            }, { onConflict: 'device_id,font_id' });
         }
       } else {
-        const result = await pool.query(`
-          INSERT INTO fonts (user_id, font_name, font_family, file_path, file_size, file_hash, font_format, origin_device_id, metadata)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-          RETURNING *
-        `, [
-          req.user.userId,
-          fontData.fontName,
-          fontData.fontFamily || '',
-          fontData.filePath,
-          fontData.fileSize,
-          fontData.fileHash,
-          fontData.fontFormat,
-          deviceId || null,
-          JSON.stringify(fontData.metadata || {})
-        ]);
-        
-        registered.push(result.rows[0]);
+        // Insert new font (without file - will be uploaded separately)
+        const { data: newFont, error } = await supabase
+          .from('fonts')
+          .insert({
+            user_id: req.user.userId,
+            font_name: fontData.fontName,
+            font_family: fontData.fontFamily || '',
+            storage_path: fontData.storagePath || null,
+            file_size: fontData.fileSize,
+            file_hash: fontData.fileHash,
+            font_format: fontData.fontFormat,
+            origin_device_id: deviceId || null,
+            metadata: fontData.metadata || {}
+          })
+          .select()
+          .single();
 
-        if (deviceId) {
-          await pool.query(`
-            INSERT INTO device_fonts (device_id, font_id, was_present_at_scan, is_system_font)
-            VALUES ($1, $2, true, true)
-            ON CONFLICT (device_id, font_id) DO NOTHING
-          `, [deviceId, result.rows[0].id]);
+        if (!error && newFont) {
+          registered.push(newFont);
+
+          // Associate with device
+          if (deviceId) {
+            await supabase
+              .from('device_fonts')
+              .upsert({
+                device_id: deviceId,
+                font_id: newFont.id,
+                was_present_at_scan: true,
+                is_system_font: true
+              }, { onConflict: 'device_id,font_id' });
+          }
         }
       }
     }
 
+    // Queue sync to other devices for newly registered fonts
     let syncQueuedCount = 0;
-    
-    if (deviceId) {
-      await pool.query(`
-        UPDATE devices 
-        SET fonts_contributed_count = (SELECT COUNT(*) FROM fonts WHERE origin_device_id = $1),
-            last_scan = CURRENT_TIMESTAMP
-        WHERE id = $1
-      `, [deviceId]);
-      
-      const otherDevices = await pool.query(
-        'SELECT id FROM devices WHERE user_id = $1 AND id != $2 AND is_active = true',
-        [req.user.userId, deviceId]
-      );
-      
-      for (const font of registered) {
-        for (const device of otherDevices.rows) {
-          await pool.query(`
-            INSERT INTO sync_queue (device_id, font_id, action, status)
-            VALUES ($1, $2, 'install', 'pending')
-          `, [device.id, font.id]);
+    if (deviceId && registered.length > 0) {
+      // Update device stats
+      await supabase
+        .from('devices')
+        .update({
+          last_scan: new Date().toISOString()
+        })
+        .eq('id', deviceId);
+
+      // Get other active devices
+      const { data: otherDevices } = await supabase
+        .from('devices')
+        .select('id')
+        .eq('user_id', req.user.userId)
+        .neq('id', deviceId)
+        .eq('is_active', true);
+
+      if (otherDevices) {
+        for (const font of registered) {
+          for (const device of otherDevices) {
+            // Check if font already on device
+            const { data: existsOnDevice } = await supabase
+              .from('device_fonts')
+              .select('id')
+              .eq('device_id', device.id)
+              .eq('font_id', font.id)
+              .single();
+
+            if (!existsOnDevice) {
+              await supabase
+                .from('sync_queue')
+                .insert({
+                  device_id: device.id,
+                  font_id: font.id,
+                  action: 'install',
+                  status: 'pending'
+                });
+            }
+          }
         }
+        syncQueuedCount = otherDevices.length;
       }
-      
-      syncQueuedCount = otherDevices.rows.length;
     }
 
     res.json({
@@ -207,15 +258,18 @@ router.post('/bulk-register', authenticateToken, async (req, res) => {
   }
 });
 
+// Check if font hash exists
 router.get('/check-hash/:hash', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT id, font_name, font_family FROM fonts WHERE file_hash = $1 AND user_id = $2',
-      [req.params.hash, req.user.userId]
-    );
+    const { data: font } = await supabase
+      .from('fonts')
+      .select('id, font_name, font_family')
+      .eq('file_hash', req.params.hash)
+      .eq('user_id', req.user.userId)
+      .single();
 
-    if (result.rows.length > 0) {
-      res.json({ exists: true, font: result.rows[0] });
+    if (font) {
+      res.json({ exists: true, font });
     } else {
       res.json({ exists: false });
     }
@@ -225,43 +279,33 @@ router.get('/check-hash/:hash', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/duplicates', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT fd.*, 
-        f1.font_name as font_1_name, f1.file_size as font_1_size,
-        f2.font_name as font_2_name, f2.file_size as font_2_size
-      FROM font_duplicates fd
-      JOIN fonts f1 ON fd.font_id_1 = f1.id
-      JOIN fonts f2 ON fd.font_id_2 = f2.id
-      WHERE f1.user_id = $1 AND fd.resolution_status = 'pending'
-    `, [req.user.userId]);
-
-    res.json({ duplicates: result.rows });
-  } catch (error) {
-    console.error('Error fetching duplicates:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
+// Delete a font
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
-    const fontResult = await pool.query(
-      'SELECT * FROM fonts WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.userId]
-    );
+    // Get font first to check ownership and get storage path
+    const { data: font, error: fetchError } = await supabase
+      .from('fonts')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.userId)
+      .single();
 
-    if (fontResult.rows.length === 0) {
+    if (fetchError || !font) {
       return res.status(404).json({ error: 'Font not found' });
     }
 
-    const font = fontResult.rows[0];
-    
-    await pool.query('DELETE FROM fonts WHERE id = $1', [req.params.id]);
-    
-    if (font.file_path) {
-      await fs.unlink(font.file_path).catch(() => {});
+    // Delete from storage if there's a file
+    if (font.storage_path) {
+      await supabase.storage.from('fonts').remove([font.storage_path]);
     }
+
+    // Delete from database
+    const { error: deleteError } = await supabase
+      .from('fonts')
+      .delete()
+      .eq('id', req.params.id);
+
+    if (deleteError) throw deleteError;
 
     res.json({ message: 'Font deleted successfully' });
   } catch (error) {
@@ -270,21 +314,105 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Download a font file
 router.get('/:id/download', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM fonts WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.userId]
-    );
+    const { data: font, error } = await supabase
+      .from('fonts')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.userId)
+      .single();
 
-    if (result.rows.length === 0) {
+    if (error || !font) {
       return res.status(404).json({ error: 'Font not found' });
     }
 
-    const font = result.rows[0];
-    res.download(font.file_path, font.font_name);
+    if (!font.storage_path) {
+      return res.status(404).json({ error: 'Font file not available' });
+    }
+
+    // Get signed URL for download
+    const { data: signedUrl, error: urlError } = await supabase.storage
+      .from('fonts')
+      .createSignedUrl(font.storage_path, 3600); // 1 hour expiry
+
+    if (urlError) {
+      console.error('Signed URL error:', urlError);
+      return res.status(500).json({ error: 'Failed to generate download URL' });
+    }
+
+    // Redirect to signed URL or stream the file
+    res.json({
+      downloadUrl: signedUrl.signedUrl,
+      fontName: font.font_name
+    });
   } catch (error) {
     console.error('Error downloading font:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Mark font as installed on a device
+router.post('/:id/installed', authenticateToken, async (req, res) => {
+  try {
+    const { deviceId } = req.body;
+    const fontId = req.params.id;
+
+    if (!deviceId) {
+      return res.status(400).json({ error: 'Device ID is required' });
+    }
+
+    // Verify font belongs to user
+    const { data: font } = await supabase
+      .from('fonts')
+      .select('id')
+      .eq('id', fontId)
+      .eq('user_id', req.user.userId)
+      .single();
+
+    if (!font) {
+      return res.status(404).json({ error: 'Font not found' });
+    }
+
+    // Verify device belongs to user
+    const { data: device } = await supabase
+      .from('devices')
+      .select('id')
+      .eq('id', deviceId)
+      .eq('user_id', req.user.userId)
+      .single();
+
+    if (!device) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Mark font as installed
+    await supabase
+      .from('device_fonts')
+      .upsert({
+        device_id: deviceId,
+        font_id: fontId,
+        was_present_at_scan: false,
+        is_system_font: false,
+        installation_status: 'installed',
+        installed_at: new Date().toISOString()
+      }, { onConflict: 'device_id,font_id' });
+
+    // Update sync queue
+    await supabase
+      .from('sync_queue')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString()
+      })
+      .eq('device_id', deviceId)
+      .eq('font_id', fontId)
+      .eq('status', 'pending');
+
+    res.json({ message: 'Font marked as installed successfully' });
+  } catch (error) {
+    console.error('Error marking font as installed:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

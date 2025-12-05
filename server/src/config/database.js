@@ -1,143 +1,71 @@
-const { Pool } = require('pg');
+const { supabaseAdmin } = require('./supabase');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
+// Export supabase client as the main database interface
+const supabase = supabaseAdmin;
 
 async function initDatabase() {
-  const client = await pool.connect();
-  
   try {
-    await client.query('BEGIN');
+    console.log('🔄 Initializing Supabase database...');
 
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        storage_limit BIGINT DEFAULT 5368709120,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+    // Check connection by querying the database
+    const { data, error } = await supabase.from('users').select('count').limit(1);
 
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS devices (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        device_name VARCHAR(255) NOT NULL,
-        device_id VARCHAR(255) UNIQUE NOT NULL,
-        os_type VARCHAR(50),
-        os_version VARCHAR(100),
-        last_sync TIMESTAMP,
-        last_scan TIMESTAMP,
-        is_active BOOLEAN DEFAULT true,
-        fonts_contributed_count INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS fonts (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        font_name VARCHAR(255) NOT NULL,
-        font_family VARCHAR(255),
-        file_path VARCHAR(500),
-        file_size BIGINT,
-        file_hash VARCHAR(64) NOT NULL,
-        font_format VARCHAR(20),
-        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        metadata JSONB,
-        origin_device_id INTEGER REFERENCES devices(id),
-        version_info VARCHAR(100)
-      )
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS font_duplicates (
-        id SERIAL PRIMARY KEY,
-        font_id_1 INTEGER REFERENCES fonts(id) ON DELETE CASCADE,
-        font_id_2 INTEGER REFERENCES fonts(id) ON DELETE CASCADE,
-        duplicate_type VARCHAR(20),
-        resolution_status VARCHAR(20) DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS device_fonts (
-        id SERIAL PRIMARY KEY,
-        device_id INTEGER REFERENCES devices(id) ON DELETE CASCADE,
-        font_id INTEGER REFERENCES fonts(id) ON DELETE CASCADE,
-        installation_status VARCHAR(20) DEFAULT 'installed',
-        installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_checked TIMESTAMP,
-        was_present_at_scan BOOLEAN DEFAULT true,
-        is_system_font BOOLEAN DEFAULT false,
-        UNIQUE(device_id, font_id)
-      )
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS sync_queue (
-        id SERIAL PRIMARY KEY,
-        device_id INTEGER REFERENCES devices(id) ON DELETE CASCADE,
-        font_id INTEGER REFERENCES fonts(id) ON DELETE CASCADE,
-        action VARCHAR(20) NOT NULL,
-        status VARCHAR(20) DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        completed_at TIMESTAMP,
-        error_message TEXT
-      )
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS font_scan_history (
-        id SERIAL PRIMARY KEY,
-        device_id INTEGER REFERENCES devices(id) ON DELETE CASCADE,
-        scan_started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        scan_completed_at TIMESTAMP,
-        fonts_found INTEGER DEFAULT 0,
-        new_fonts_added INTEGER DEFAULT 0,
-        errors TEXT
-      )
-    `);
-
-    const constraintCheck = await client.query(`
-      SELECT constraint_name FROM information_schema.table_constraints
-      WHERE table_name = 'fonts' AND constraint_type = 'UNIQUE' AND constraint_name LIKE '%file_hash%'
-    `);
-    
-    if (constraintCheck.rows.length > 0) {
-      for (const row of constraintCheck.rows) {
-        await client.query(`ALTER TABLE fonts DROP CONSTRAINT IF EXISTS ${row.constraint_name}`);
-      }
+    if (error && error.code === '42P01') {
+      // Table doesn't exist, need to create schema
+      console.log('📦 Creating database schema...');
+      await createSchema();
+    } else if (error) {
+      throw error;
     }
-    
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_fonts_user_id ON fonts(user_id);
-      CREATE INDEX IF NOT EXISTS idx_fonts_file_hash ON fonts(file_hash);
-      CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id);
-      CREATE INDEX IF NOT EXISTS idx_device_fonts_device_id ON device_fonts(device_id);
-      CREATE INDEX IF NOT EXISTS idx_device_fonts_font_id ON device_fonts(font_id);
-      CREATE INDEX IF NOT EXISTS idx_sync_queue_device_id ON sync_queue(device_id);
-    `);
-    
-    await client.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_fonts_user_hash ON fonts(user_id, file_hash);
-    `);
 
-    await client.query('COMMIT');
-    console.log('✅ Database schema initialized successfully');
+    // Ensure storage bucket exists
+    await ensureStorageBucket();
+
+    console.log('✅ Supabase database initialized successfully');
   } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('❌ Error initializing database:', error);
-    throw error;
-  } finally {
-    client.release();
+    console.error('❌ Error initializing database:', error.message);
+    console.log('📋 Please run the SQL schema in your Supabase dashboard.');
+    console.log('   Go to: SQL Editor > New Query > Paste the schema from server/src/config/schema.sql');
   }
 }
 
-module.exports = { pool, initDatabase };
+async function ensureStorageBucket() {
+  try {
+    // Check if fonts bucket exists
+    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+
+    if (listError) {
+      console.warn('Could not list buckets:', listError.message);
+      return;
+    }
+
+    const fontsBucket = buckets?.find(b => b.name === 'fonts');
+
+    if (!fontsBucket) {
+      // Create the fonts bucket
+      const { error: createError } = await supabase.storage.createBucket('fonts', {
+        public: false,
+        fileSizeLimit: 52428800, // 50MB max per file
+      });
+
+      if (createError && !createError.message.includes('already exists')) {
+        console.warn('Could not create fonts bucket:', createError.message);
+      } else {
+        console.log('✅ Created fonts storage bucket');
+      }
+    } else {
+      console.log('✅ Fonts storage bucket exists');
+    }
+  } catch (error) {
+    console.warn('Storage bucket check failed:', error.message);
+  }
+}
+
+async function createSchema() {
+  // This will be run via Supabase SQL editor
+  // The schema is defined in schema.sql
+  console.log('⚠️  Please create the database schema via Supabase SQL Editor');
+  console.log('   Copy the contents of server/src/config/schema.sql');
+}
+
+module.exports = { supabase, initDatabase };

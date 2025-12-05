@@ -1,14 +1,67 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 dist/
 dist-electron/
-build/
 out/
+release/
+
+# Uploads directory
 uploads/
+
+# Logs
 *.log
+npm-debug.log*
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# Environment files (NEVER commit these)
 .env
 .env.local
+.env.production
+server/.env
+server/.env.production
+
+# Database files
 *.sqlite
 *.db
+
+# IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# Deployment credentials (NEVER commit)
+DEPLOYMENT_CREDENTIALS.md
+
+# Build artifacts (release binaries)
+*.dmg
+*.exe
+*.deb
+*.AppImage
+
+# Temporary files
+*.tmp
+*.temp
+
+# After Effects project files (not needed for app)
+*.aep
+Adobe After Effects Auto-Save/
+
+# Documentation files not needed in repo
+DEPLOYMENT_COMPLETE.md
+PRODUCTION_READY_SUMMARY.md
+DEDUPLICATION_LOGIC.md
+WEBSITE.md
+
+# Extra logo variants (keep FontCap-Logo.png and FontCap3d-6.png for README)
+FontCap3d.png
+FontCap3d-[2-5].png
+FontCap3d-back*.png
+FontCap-Type.svg
+FontCap.svg
+FontCapLogomark.svg

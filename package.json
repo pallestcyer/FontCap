@@ -1,14 +1,17 @@
 {
-  "name": "font-sync-pro",
+  "name": "fontcap",
   "version": "1.0.0",
   "description": "Cross-platform font management and synchronization service",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run electron:dev\"",
-    "server": "cd server && node src/server.js",
+    "dev": "vite",
     "electron:dev": "vite",
     "electron:start": "electron .",
-    "build": "vite build",
+    "build": "vite build && node scripts/postbuild.js",
+    "build:mac": "npm run build && electron-builder --mac",
+    "build:win": "npm run build && electron-builder --win",
+    "build:linux": "npm run build && electron-builder --linux",
+    "build:all": "npm run build && electron-builder -mwl",
     "preview": "vite preview"
   },
   "keywords": [
@@ -17,7 +20,10 @@
     "sync",
     "desktop"
   ],
-  "author": "Font Sync Pro",
+  "author": {
+    "name": "FontCap",
+    "email": "hello@fontcap.app"
+  },
   "license": "MIT",
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
@@ -26,12 +32,15 @@
     "electron": "^28.1.0",
     "electron-builder": "^24.9.1",
     "postcss": "^8.4.33",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.1",
     "vite": "^5.0.12",
     "vite-plugin-electron": "^0.28.2"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.84.0",
     "axios": "^1.6.5",
+    "bcryptjs": "^3.0.3",
     "chokidar": "^4.0.3",
     "fontkit": "^2.0.4",
     "react": "^18.2.0",
@@ -39,5 +48,72 @@
     "react-dropzone": "^14.2.3",
     "react-router-dom": "^6.21.3",
     "zustand": "^4.5.0"
+  },
+  "build": {
+    "appId": "com.fontcap.app",
+    "productName": "FontCap",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "electron/**/*",
+      "build/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["universal"]
+        },
+        {
+          "target": "zip",
+          "arch": ["universal"]
+        }
+      ],
+      "icon": "build/icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "minimumSystemVersion": "10.13"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "signAndEditExecutable": false
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "category": "Utility",
+      "icon": "build/icon.png",
+      "maintainer": "FontCap <hello@fontcap.app>"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }
