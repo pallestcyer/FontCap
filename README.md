@@ -38,6 +38,20 @@ Download the latest version for your platform:
 | **Windows** | [FontCap-1.0.0-win-x64.zip](https://github.com/pallestcyer/FontCap/releases/latest) | Windows 10+ |
 | **Linux** | [FontCap-1.0.0.AppImage](https://github.com/pallestcyer/FontCap/releases/latest) | Ubuntu 18.04+ or equivalent |
 
+### macOS Installation
+
+FontCap is not signed with an Apple Developer certificate (we're open source and independent). macOS will block the app by default. To install:
+
+1. Download and open the `.dmg` file
+2. Drag FontCap to Applications
+3. Open **Terminal** and run:
+   ```bash
+   xattr -cr /Applications/FontCap.app
+   ```
+4. Open FontCap from Applications
+
+This removes the quarantine flag that macOS applies to downloaded apps. You only need to do this once.
+
 ## Features
 
 - **Cross-Platform Sync** — Works natively on macOS, Windows, and Linux
