@@ -15,10 +15,20 @@
     "preview": "vite preview"
   },
   "keywords": [
-    "electron",
-    "font",
+    "font-management",
+    "font-sync",
+    "font-manager",
+    "fonts",
+    "typography",
+    "cross-platform",
     "sync",
-    "desktop"
+    "electron",
+    "desktop-app",
+    "macos",
+    "windows",
+    "linux",
+    "design-tools",
+    "developer-tools"
   ],
   "author": {
     "name": "FontCap",
