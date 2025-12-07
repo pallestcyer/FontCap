@@ -62,6 +62,7 @@
   "build": {
     "appId": "com.fontcap.app",
     "productName": "FontCap",
+    "publish": null,
     "directories": {
       "output": "release",
       "buildResources": "build"
