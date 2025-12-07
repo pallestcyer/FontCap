@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import fontCapLogomark from '/FontCapLogomark.svg';
+const fontCapLogomark = './FontCapLogomark.svg';
 
 export default function Login() {
   const [email, setEmail] = useState('');
