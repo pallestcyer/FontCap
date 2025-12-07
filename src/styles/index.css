@@ -2,16 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   Apple/Figma Inspired Design System
+   ============================================ */
+
+/* Base Reset */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+/* Root Variables */
+:root {
+  --ease-apple: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --color-bg: #f5f5f7;
+  --color-elevated: #ffffff;
+  --color-text: #1d1d1f;
+  --color-secondary: #86868b;
+  --color-accent: #007AFF;
+  --color-border: rgba(0,0,0,0.06);
+}
+
+/* Body Styling */
 body {
-  font-family: "Acumin Pro Wide", Inter, system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', 'SF Pro Display', 'SF Pro Text', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  letter-spacing: -0.01em;
+  line-height: 1.5;
 }
 
 #root {
@@ -19,27 +43,215 @@ body {
   height: 100vh;
 }
 
+/* ============================================
+   Component Layer
+   ============================================ */
+
 @layer components {
+  /* Primary Button - Apple style with subtle gradient */
   .btn-primary {
-    @apply bg-black hover:bg-neutral-800 text-white font-semibold py-2 px-4 rounded-lg transition-colors;
+    @apply bg-apple-text text-white font-medium py-3 px-6 rounded-xl
+           transition-all duration-200 ease-apple
+           hover:opacity-90 active:scale-[0.98]
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    background: linear-gradient(180deg, #3a3a3c 0%, #1d1d1f 100%);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08);
   }
 
+  .btn-primary:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);
+  }
+
+  .btn-primary:active {
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  }
+
+  /* Secondary Button - Light with border */
   .btn-secondary {
-    @apply bg-white hover:bg-neutral-100 text-black font-semibold py-2 px-4 rounded-lg transition-colors border border-black;
+    @apply bg-white text-apple-text font-medium py-3 px-6 rounded-xl
+           transition-all duration-200 ease-apple
+           hover:bg-neutral-50 active:scale-[0.98]
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    border: 1px solid rgba(0,0,0,0.12);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   }
 
+  .btn-secondary:hover {
+    border-color: rgba(0,0,0,0.18);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+  }
+
+  /* Accent Button - Blue */
+  .btn-accent {
+    @apply bg-accent text-white font-medium py-3 px-6 rounded-xl
+           transition-all duration-200 ease-apple
+           hover:bg-accent-hover active:scale-[0.98]
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    box-shadow: 0 1px 2px rgba(0,122,255,0.2);
+  }
+
+  /* Small Button Variant */
+  .btn-sm {
+    @apply py-2 px-4 text-sm rounded-lg;
+  }
+
+  /* Input Field - Apple style */
   .input-field {
-    @apply w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none;
+    @apply w-full px-4 py-3 text-[15px] rounded-xl outline-none
+           transition-all duration-200 ease-apple;
+    background: #f5f5f7;
+    border: 1px solid transparent;
   }
 
+  .input-field:focus {
+    background: #ffffff;
+    border-color: rgba(0,122,255,0.4);
+    box-shadow: 0 0 0 4px rgba(0,122,255,0.1);
+  }
+
+  .input-field::placeholder {
+    color: #86868b;
+  }
+
+  .input-field:disabled {
+    @apply opacity-60 cursor-not-allowed;
+    background: #f0f0f2;
+  }
+
+  /* Card - Elevated with soft shadow */
   .card {
-    @apply bg-white rounded-lg shadow-md p-6;
+    @apply bg-white rounded-2xl p-6;
+    border: 1px solid rgba(0,0,0,0.04);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 ease-apple;
+  }
+
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.06);
+  }
+
+  /* Segmented Control */
+  .segmented-control {
+    @apply flex p-1 rounded-xl;
+    background: rgba(0,0,0,0.04);
+  }
+
+  .segmented-control-item {
+    @apply flex-1 py-2 px-4 text-sm font-medium text-apple-secondary
+           rounded-lg transition-all duration-200 ease-apple text-center;
+  }
+
+  .segmented-control-item.active {
+    @apply bg-white text-apple-text;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  /* Toggle Switch - iOS style */
+  .toggle-switch {
+    @apply relative inline-flex h-6 w-11 items-center rounded-full
+           transition-colors duration-200 ease-apple cursor-pointer;
+    background: #e5e5ea;
+  }
+
+  .toggle-switch.active {
+    background: #34C759;
+  }
+
+  .toggle-switch-knob {
+    @apply inline-block h-[22px] w-[22px] transform rounded-full bg-white
+           transition-transform duration-200 ease-spring;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.1);
+    margin: 2px;
+  }
+
+  .toggle-switch.active .toggle-switch-knob {
+    transform: translateX(20px);
+  }
+
+  /* Progress Bar - Rounded with gradient */
+  .progress-bar {
+    @apply h-1.5 rounded-full overflow-hidden;
+    background: rgba(0,0,0,0.06);
+  }
+
+  .progress-bar-fill {
+    @apply h-full rounded-full transition-all duration-300 ease-apple;
+    background: linear-gradient(90deg, #007AFF 0%, #5856D6 100%);
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md;
+    background: rgba(0,0,0,0.04);
+    color: #6e6e73;
+  }
+
+  .badge-accent {
+    background: rgba(0,122,255,0.1);
+    color: #007AFF;
+  }
+
+  .badge-success {
+    background: rgba(52,199,89,0.1);
+    color: #34C759;
+  }
+
+  /* Floating Footer Pill */
+  .floating-pill {
+    @apply rounded-2xl;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  }
+
+  /* Glass Effect Header */
+  .glass-header {
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+
+  /* Skeleton Loader */
+  .skeleton {
+    @apply rounded-lg;
+    background: linear-gradient(90deg, #e8e8ed 25%, #f0f0f5 50%, #e8e8ed 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
   }
 }
 
+/* ============================================
+   Animations
+   ============================================ */
+
+/* Fade In Up - for cards and list items */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  opacity: 0;
+}
+
+/* Slide In - for notifications */
 @keyframes slideIn {
   from {
-    transform: translateX(400px);
+    transform: translateX(100px);
     opacity: 0;
   }
   to {
@@ -49,77 +261,26 @@ body {
 }
 
 .animate-slide-in {
-  animation: slideIn 0.3s ease-out;
+  animation: slideIn 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-/* Staggered fade-in animation for font cards */
-@keyframes fadeInUp {
+/* Slide Up - for modals and sheets */
+@keyframes slideUp {
   from {
+    transform: translateY(20px);
     opacity: 0;
-    transform: translateY(8px);
   }
   to {
-    opacity: 1;
     transform: translateY(0);
-  }
-}
-
-.animate-fade-in-up {
-  animation: fadeInUp 0.3s ease-out forwards;
-  opacity: 0;
-}
-
-/* Stagger delay utilities */
-.stagger-1 { animation-delay: 0ms; }
-.stagger-2 { animation-delay: 30ms; }
-.stagger-3 { animation-delay: 60ms; }
-.stagger-4 { animation-delay: 90ms; }
-.stagger-5 { animation-delay: 120ms; }
-.stagger-6 { animation-delay: 150ms; }
-.stagger-7 { animation-delay: 180ms; }
-.stagger-8 { animation-delay: 210ms; }
-.stagger-9 { animation-delay: 240ms; }
-.stagger-10 { animation-delay: 270ms; }
-
-/* Button press effect */
-.btn-press {
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
-}
-
-.btn-press:active {
-  transform: scale(0.97);
-}
-
-/* Nav icon hover effect */
-.nav-icon {
-  transition: transform 0.15s ease, background-color 0.15s ease, color 0.15s ease;
-}
-
-.nav-icon:hover {
-  transform: scale(1.05);
-}
-
-.nav-icon:active {
-  transform: scale(0.95);
-}
-
-/* Sync status pulse */
-@keyframes syncPulse {
-  0%, 100% {
-    transform: scale(1);
     opacity: 1;
   }
-  50% {
-    transform: scale(1.3);
-    opacity: 0.7;
-  }
 }
 
-.animate-sync-pulse {
-  animation: syncPulse 1.5s ease-in-out infinite;
+.animate-slide-up {
+  animation: slideUp 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-/* Progress bar shimmer effect */
+/* Shimmer - for loading states */
 @keyframes shimmer {
   0% {
     background-position: -200% 0;
@@ -129,75 +290,46 @@ body {
   }
 }
 
+/* Sync Pulse */
+@keyframes syncPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.8;
+  }
+}
+
+.animate-sync-pulse {
+  animation: syncPulse 2s ease-in-out infinite;
+}
+
+/* Soft Pulse */
+@keyframes pulseSoft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-soft {
+  animation: pulseSoft 2s ease-in-out infinite;
+}
+
+/* Progress Shimmer Overlay */
 .progress-shimmer {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.3) 50%,
+    rgba(255, 255, 255, 0.4) 50%,
     transparent 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
-}
-
-/* Card hover lift effect */
-.card-hover {
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-/* Upload zone animated border */
-@keyframes dashMove {
-  0% {
-    stroke-dashoffset: 0;
-  }
-  100% {
-    stroke-dashoffset: 20;
-  }
-}
-
-.upload-zone-active {
-  position: relative;
-}
-
-/* Filter tab sliding indicator */
-.tab-indicator {
-  transition: transform 0.2s ease, width 0.2s ease;
-}
-
-/* Skeleton loader animation */
-@keyframes skeletonPulse {
-  0%, 100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 0.7;
-  }
-}
-
-.skeleton {
-  background: linear-gradient(90deg, #e5e5e5 25%, #f0f0f0 50%, #e5e5e5 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: 4px;
-}
-
-/* Download button animation */
-@keyframes downloadBounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(2px);
-  }
-}
-
-.btn-download:hover {
-  animation: downloadBounce 0.4s ease infinite;
 }
 
 /* Ripple effect for sync indicator */
@@ -222,5 +354,119 @@ body {
   inset: 0;
   border-radius: 50%;
   background: currentColor;
-  animation: ripple 1.5s ease-out infinite;
+  animation: ripple 2s ease-out infinite;
+}
+
+/* ============================================
+   Stagger Animation Delays
+   ============================================ */
+
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 40ms; }
+.stagger-3 { animation-delay: 80ms; }
+.stagger-4 { animation-delay: 120ms; }
+.stagger-5 { animation-delay: 160ms; }
+.stagger-6 { animation-delay: 200ms; }
+.stagger-7 { animation-delay: 240ms; }
+.stagger-8 { animation-delay: 280ms; }
+.stagger-9 { animation-delay: 320ms; }
+.stagger-10 { animation-delay: 360ms; }
+
+/* ============================================
+   Interactive States
+   ============================================ */
+
+/* Button Press Effect */
+.btn-press {
+  transition: transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.btn-press:active {
+  transform: scale(0.98);
+}
+
+/* Nav Icon */
+.nav-icon {
+  @apply transition-all duration-200 ease-apple;
+}
+
+.nav-icon:hover {
+  transform: scale(1.05);
+}
+
+.nav-icon:active {
+  transform: scale(0.95);
+}
+
+/* Download Button Bounce */
+@keyframes downloadBounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(2px);
+  }
+}
+
+.btn-download:hover svg {
+  animation: downloadBounce 0.5s ease infinite;
+}
+
+/* ============================================
+   Upload Zone
+   ============================================ */
+
+.upload-zone {
+  @apply border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer
+         transition-all duration-300 ease-apple;
+  border-color: rgba(0,0,0,0.12);
+  background: rgba(255,255,255,0.5);
+}
+
+.upload-zone:hover {
+  border-color: rgba(0,122,255,0.4);
+  background: rgba(0,122,255,0.02);
+}
+
+.upload-zone.active {
+  border-color: #007AFF;
+  background: rgba(0,122,255,0.04);
+}
+
+/* ============================================
+   Scrollbar Styling
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.25);
+}
+
+/* ============================================
+   Focus Styles
+   ============================================ */
+
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(0,122,255,0.2);
+  border-radius: 4px;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(0,122,255,0.2);
 }
