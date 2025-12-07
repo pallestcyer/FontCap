@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import fontCapLogo from '/FontCap-Type.svg';
+const fontCapLogo = './FontCap-Type.svg';
 import { useAuthStore } from '../stores/authStore';
 import { useFontStore } from '../stores/fontStore';
 import { useDeviceStore } from '../stores/deviceStore';
