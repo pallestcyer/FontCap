@@ -229,7 +229,7 @@ export default function Settings() {
         <button
           onClick={handleSaveSettings}
           disabled={saving || loading}
-          className="w-full btn-primary btn-sm btn-press disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full action-btn action-btn-primary"
         >
           {saving ? (
             <>
@@ -246,7 +246,7 @@ export default function Settings() {
 
         {/* Version info */}
         <p className="text-center text-2xs text-apple-tertiary pt-1">
-          FontCap v1.1.0
+          FontCap v1.2.0
         </p>
       </div>
     </div>

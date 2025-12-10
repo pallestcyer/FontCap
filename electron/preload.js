@@ -25,16 +25,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   getFontInstallDir: () => ipcRenderer.invoke('get-font-install-dir'),
 
-  // Event listeners
+  // Event listeners (with cleanup support)
   onFontDetected: (callback) => {
+    ipcRenderer.removeAllListeners('font-detected');
     ipcRenderer.on('font-detected', (event, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners('font-detected');
   },
 
   onScanComplete: (callback) => {
+    ipcRenderer.removeAllListeners('scan-complete');
     ipcRenderer.on('scan-complete', (event, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners('scan-complete');
   },
 
   onUploadProgress: (callback) => {
+    ipcRenderer.removeAllListeners('upload-progress');
     ipcRenderer.on('upload-progress', (event, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners('upload-progress');
   },
 });

@@ -8,60 +8,78 @@ import { useAuthStore } from '../stores/authStore';
 const FontCard = ({ font, onDownload, isDownloading, index }) => {
   const staggerClass = `stagger-${(index % 10) + 1}`;
 
+  // Build tags array for font metadata
+  const tags = [];
+  if (font.is_variable) tags.push('Variable');
+  if (font.category) tags.push(font.category);
+  if (font.weight_name && font.weight_name !== 'Regular') tags.push(font.weight_name);
+  if (font.is_italic) tags.push('Italic');
+
   return (
-    <div className={`group card card-hover animate-fade-in-up ${staggerClass} !p-3`}>
-      {/* Header with name and actions */}
-      <div className="flex justify-between items-center gap-2 mb-1.5">
-        <h3 className="font-medium text-sm text-apple-text truncate tracking-tight flex-1" title={font.font_name}>
+    <div className={`group font-card animate-fade-in-up ${staggerClass}`}>
+      {/* Download button - top right corner */}
+      {!font.isSyncedToDevice && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDownload(font); }}
+          disabled={isDownloading}
+          className={`absolute top-2 right-2 flex items-center justify-center w-7 h-7 rounded-lg
+                     transition-all duration-200 btn-press z-10
+                     ${isDownloading ? 'opacity-100 bg-white/80 text-font-card-hover' : 'opacity-0 group-hover:opacity-100 bg-white/80 hover:bg-white text-apple-secondary hover:text-font-card-hover'}`}
+          title={font.storage_path ? 'Download to device' : 'Unavailable'}
+        >
+          {isDownloading ? (
+            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          ) : font.storage_path ? (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+          )}
+        </button>
+      )}
+
+      {/* Sync status indicator - top left */}
+      <span
+        className={`absolute top-2 left-2 w-2 h-2 rounded-full transition-colors duration-300 ${
+          font.isSyncedToDevice ? 'bg-status-success' : 'bg-neutral-300'
+        }`}
+        title={font.isSyncedToDevice ? 'Synced' : 'Not synced'}
+      />
+
+      {/* Font preview - Large "Aa" */}
+      <div className="flex-1 flex items-center justify-start px-3 pt-4 pb-2">
+        <span
+          className="text-5xl text-apple-text transition-colors duration-200 group-hover:text-font-card-hover"
+          style={{ fontFamily: `"${font.font_family || font.font_name}", system-ui` }}
+        >
+          Aa
+        </span>
+      </div>
+
+      {/* Font info - bottom section */}
+      <div className="px-3 pb-3">
+        {/* Font name */}
+        <h3 className="font-medium text-sm text-apple-text truncate tracking-tight text-left mb-1.5" title={font.font_name}>
           {font.font_name}
         </h3>
 
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* Download button - visible on hover or when downloading */}
-          {!font.isSyncedToDevice && (
-            <button
-              onClick={() => onDownload(font)}
-              disabled={isDownloading}
-              className={`flex items-center justify-center w-6 h-6 rounded-md text-accent
-                         transition-all duration-200 btn-press btn-download
-                         ${isDownloading ? 'opacity-100 bg-accent/10' : 'opacity-0 group-hover:opacity-100 hover:bg-accent/10'}`}
-              title={font.storage_path ? 'Download to device' : 'Unavailable'}
-            >
-              {isDownloading ? (
-                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              ) : font.storage_path ? (
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                </svg>
-              ) : (
-                <svg className="w-3.5 h-3.5 text-apple-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                </svg>
-              )}
-            </button>
-          )}
-
-          {/* Sync status indicator */}
-          <span
-            className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${
-              font.isSyncedToDevice ? 'bg-status-success' : 'bg-neutral-300'
-            }`}
-            title={font.isSyncedToDevice ? 'Synced' : 'Not synced'}
-          />
-        </div>
+        {/* Tags */}
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 justify-start">
+            {tags.slice(0, 3).map((tag, i) => (
+              <span key={i} className="font-tag">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
-
-      {/* Font preview */}
-      <p
-        className="text-xl text-apple-text truncate leading-snug"
-        style={{ fontFamily: `"${font.font_family || font.font_name}", system-ui` }}
-        title="The quick brown fox jumps over the lazy dog"
-      >
-        The quick brown fox jumps
-      </p>
     </div>
   );
 };
@@ -80,34 +98,31 @@ const UploadZone = ({ onUpload }) => {
   return (
     <div
       {...getRootProps()}
-      className={`upload-zone !p-4 ${isDragActive ? 'active' : ''}`}
+      className={`upload-zone-minimal ${isDragActive ? 'active' : ''}`}
     >
       <input {...getInputProps()} />
-      <div className="flex items-center justify-center gap-3">
-        <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-200
-                        ${isDragActive ? 'bg-accent/10 text-accent' : 'bg-black/[0.04] text-apple-secondary'}`}>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-          </svg>
-        </div>
-        <div>
-          <p className="text-sm text-apple-text font-medium">
-            {isDragActive ? 'Drop fonts here' : 'Drop fonts or click to browse'}
-          </p>
-          <p className="text-xs text-apple-secondary">TTF, OTF, WOFF, WOFF2</p>
-        </div>
-      </div>
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      </svg>
+      <span className="text-sm font-medium">
+        {isDragActive ? 'Drop fonts' : 'Add Fonts'}
+      </span>
     </div>
   );
 };
 
 const SkeletonCard = ({ index }) => (
-  <div className={`card !p-3 animate-fade-in-up stagger-${index + 1}`}>
-    <div className="flex justify-between items-center gap-2 mb-1.5">
-      <div className="skeleton h-4 w-32" />
-      <div className="skeleton h-1.5 w-1.5 rounded-full" />
+  <div className={`font-card animate-fade-in-up stagger-${index + 1}`}>
+    <div className="flex-1 flex items-center justify-center pt-4 pb-2">
+      <div className="skeleton h-12 w-16 rounded-lg" />
     </div>
-    <div className="skeleton h-6 w-48" />
+    <div className="px-3 pb-3">
+      <div className="skeleton h-4 w-24 mx-auto mb-1.5" />
+      <div className="flex gap-1 justify-center">
+        <div className="skeleton h-5 w-14 rounded-full" />
+        <div className="skeleton h-5 w-12 rounded-full" />
+      </div>
+    </div>
   </div>
 );
 
@@ -132,6 +147,7 @@ export default function Dashboard() {
     downloadingFontId,
     startOperation,
     updateOperationProgress,
+    setOperationProgress,
     endOperation
   } = useFontStore();
   const { currentDevice, registerDevice } = useDeviceStore();
@@ -148,13 +164,52 @@ export default function Dashboard() {
     initializeApp();
   }, []);
 
+  // Track upload operation ID to ignore stale progress updates
+  const uploadOperationIdRef = React.useRef(null);
+
   useEffect(() => {
+    let cleanup = null;
+    let lastUpdate = 0;
+    let pendingData = null;
+    let rafId = null;
+
     if (window.electronAPI?.onUploadProgress) {
-      window.electronAPI.onUploadProgress((data) => {
-        updateOperationProgress(data.current, data.fontName);
+      cleanup = window.electronAPI.onUploadProgress((data) => {
+        // Only process if we have an active upload operation
+        if (!uploadOperationIdRef.current) return;
+
+        // Throttle updates to prevent rapid state changes
+        const now = Date.now();
+        pendingData = data;
+
+        // Update immediately if it's been more than 100ms, otherwise schedule
+        if (now - lastUpdate > 100) {
+          lastUpdate = now;
+          setOperationProgress({
+            current: data.current,
+            total: data.total,
+            currentFontName: data.fontName
+          });
+        } else if (!rafId) {
+          rafId = requestAnimationFrame(() => {
+            rafId = null;
+            if (pendingData && uploadOperationIdRef.current) {
+              lastUpdate = Date.now();
+              setOperationProgress({
+                current: pendingData.current,
+                total: pendingData.total,
+                currentFontName: pendingData.fontName
+              });
+            }
+          });
+        }
       });
     }
-  }, [updateOperationProgress]);
+    return () => {
+      if (cleanup) cleanup();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [setOperationProgress]);
 
   const registerCurrentDevice = async () => {
     if (window.electronAPI) {
@@ -227,7 +282,8 @@ export default function Dashboard() {
             }
           }));
 
-          startOperation('uploading', fontsToUpload.length, 'Uploading...');
+          // Start upload operation and track it
+          uploadOperationIdRef.current = startOperation('uploading', fontsToUpload.length, 'Uploading...');
 
           let uploadResult = { success: false, uploaded: 0, failed: 0, results: [] };
           try {
@@ -236,6 +292,8 @@ export default function Dashboard() {
             console.warn('Storage upload failed:', uploadError);
           }
 
+          // Clear upload tracking and end operation
+          uploadOperationIdRef.current = null;
           endOperation();
 
           const fontsWithStorage = result.fonts.map(font => {
@@ -415,7 +473,7 @@ export default function Dashboard() {
         <button
           onClick={handleSync}
           disabled={syncing}
-          className="flex-1 btn-secondary btn-sm btn-press disabled:opacity-50 flex items-center justify-center gap-2"
+          className="flex-1 action-btn action-btn-secondary"
         >
           {syncing ? (
             <>
@@ -437,7 +495,7 @@ export default function Dashboard() {
         <button
           onClick={handleScanFonts}
           disabled={scanning || syncing}
-          className="flex-1 btn-primary btn-sm btn-press disabled:opacity-50 flex items-center justify-center gap-2"
+          className="flex-1 action-btn action-btn-primary"
         >
           {scanning ? (
             <>
@@ -489,23 +547,24 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Filter tabs - Segmented control */}
-      <div className="segmented-control mb-3">
+      {/* Filter tabs - Minimal pill style */}
+      <div className="flex items-center gap-1 mb-3">
         {filterTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setSyncFilter(tab.id)}
-            className={`segmented-control-item ${syncFilter === tab.id ? 'active' : ''}`}
+            className={`filter-pill ${syncFilter === tab.id ? 'active' : ''}`}
           >
-            {tab.label} ({tab.count})
+            {tab.label}
+            <span className="filter-pill-count">{tab.count}</span>
           </button>
         ))}
       </div>
 
       {/* Content */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-2">
-          {[...Array(5)].map((_, i) => (
+        <div className="grid grid-cols-2 gap-3">
+          {[...Array(6)].map((_, i) => (
             <SkeletonCard key={i} index={i} />
           ))}
         </div>
@@ -517,8 +576,8 @@ export default function Dashboard() {
             {searchQuery && ` matching "${searchQuery}"`}
           </p>
 
-          {/* Font grid */}
-          <div className="grid grid-cols-1 gap-2">
+          {/* Font grid - two columns */}
+          <div className="grid grid-cols-2 gap-3">
             {filteredFonts.map((font, index) => (
               <FontCard
                 key={font.id}
@@ -558,15 +617,16 @@ export default function Dashboard() {
 
       {/* Upload overlay */}
       {uploading && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="card p-6 animate-slide-up">
-            <div className="flex items-center gap-3">
-              <svg className="w-5 h-5 animate-spin text-accent" fill="none" viewBox="0 0 24 24">
+        <div className="fixed inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white/90 backdrop-blur-xl rounded-2xl px-5 py-4 shadow-elevated animate-slide-up
+                         border border-black/[0.04] flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+              <svg className="w-4 h-4 animate-spin text-accent" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              <p className="text-apple-text font-medium">Uploading fonts...</p>
             </div>
+            <p className="text-sm text-apple-text font-medium">Uploading fonts...</p>
           </div>
         </div>
       )}

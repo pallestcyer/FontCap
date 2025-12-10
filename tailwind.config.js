@@ -30,6 +30,8 @@ export default {
           warning: '#FF9500',
           error: '#FF3B30',
         },
+        // Font card hover color (HSL 217 91 60)
+        'font-card-hover': '#3b82f6',
         // Legacy primary (for gradual transition)
         primary: {
           50: '#fafafa',
