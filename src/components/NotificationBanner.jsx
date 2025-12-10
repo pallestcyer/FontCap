@@ -2,61 +2,51 @@ import React, { useEffect } from 'react';
 import { useNotificationStore } from '../stores/notificationStore';
 
 const NotificationItem = ({ notification, onRemove }) => {
-  // Type-based styling
+  // Type-based styling - minimal with subtle icon backgrounds
   const typeConfig = {
     success: {
-      bg: 'bg-white',
-      border: 'border-status-success/20',
-      icon: (
-        <svg className="w-5 h-5 text-status-success" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
+      iconBg: 'bg-status-success/10',
+      iconColor: 'text-status-success',
     },
     error: {
-      bg: 'bg-white',
-      border: 'border-status-error/20',
-      icon: (
-        <svg className="w-5 h-5 text-status-error" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
+      iconBg: 'bg-status-error/10',
+      iconColor: 'text-status-error',
     },
     warning: {
-      bg: 'bg-white',
-      border: 'border-status-warning/20',
-      icon: (
-        <svg className="w-5 h-5 text-status-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-        </svg>
-      ),
+      iconBg: 'bg-status-warning/10',
+      iconColor: 'text-status-warning',
     },
     info: {
-      bg: 'bg-white',
-      border: 'border-accent/20',
-      icon: (
-        <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-        </svg>
-      ),
+      iconBg: 'bg-accent/10',
+      iconColor: 'text-accent',
     },
   };
 
   const config = typeConfig[notification.type] || typeConfig.info;
 
+  const icons = {
+    success: <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />,
+    error: <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />,
+    warning: <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />,
+    info: <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />,
+  };
+
   return (
     <div
-      className={`${config.bg} ${config.border} border rounded-2xl p-4 mb-3 shadow-elevated
-                  flex items-start gap-3 animate-slide-in`}
+      className="bg-white/90 backdrop-blur-xl rounded-xl px-3 py-2.5 mb-2
+                 border border-black/[0.04] shadow-soft
+                 flex items-center gap-2.5 animate-slide-in"
     >
-      {/* Icon */}
-      <div className="flex-shrink-0">
-        {config.icon}
+      {/* Icon with subtle background */}
+      <div className={`flex-shrink-0 w-7 h-7 rounded-lg ${config.iconBg} flex items-center justify-center`}>
+        <svg className={`w-4 h-4 ${config.iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          {icons[notification.type] || icons.info}
+        </svg>
       </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-apple-text font-medium whitespace-pre-line leading-relaxed">
+        <p className="text-sm text-apple-text font-medium whitespace-pre-line leading-snug">
           {notification.message}
         </p>
       </div>
@@ -64,10 +54,10 @@ const NotificationItem = ({ notification, onRemove }) => {
       {/* Dismiss button */}
       <button
         onClick={() => onRemove(notification.id)}
-        className="flex-shrink-0 p-1 -mr-1 rounded-lg text-apple-secondary hover:text-apple-text
-                   hover:bg-black/[0.04] transition-colors"
+        className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center
+                   text-apple-tertiary hover:text-apple-text hover:bg-black/[0.04] transition-colors"
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>

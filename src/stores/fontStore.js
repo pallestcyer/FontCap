@@ -60,6 +60,7 @@ export const useFontStore = create((set, get) => ({
   operationProgress: {
     active: false,
     type: null, // 'scanning' | 'uploading' | 'downloading'
+    operationId: null, // Unique ID to track which operation progress belongs to
     current: 0,
     total: 0,
     currentFontName: '',
@@ -70,16 +71,21 @@ export const useFontStore = create((set, get) => ({
     operationProgress: { ...get().operationProgress, ...progress }
   }),
 
-  startOperation: (type, total = 0, message = '') => set({
-    operationProgress: {
-      active: true,
-      type,
-      current: 0,
-      total,
-      currentFontName: '',
-      message
-    }
-  }),
+  startOperation: (type, total = 0, message = '') => {
+    const operationId = Date.now() + Math.random();
+    set({
+      operationProgress: {
+        active: true,
+        type,
+        operationId,
+        current: 0,
+        total,
+        currentFontName: '',
+        message
+      }
+    });
+    return operationId;
+  },
 
   updateOperationProgress: (current, currentFontName = '', message = '') => set({
     operationProgress: {
@@ -94,6 +100,7 @@ export const useFontStore = create((set, get) => ({
     operationProgress: {
       active: false,
       type: null,
+      operationId: null,
       current: 0,
       total: 0,
       currentFontName: '',
@@ -195,23 +202,43 @@ export const useFontStore = create((set, get) => ({
         if (existing) {
           duplicates.push({ fontName: fontData.fontName, fontId: existing.id });
 
-          // If we have a storage_path now but the existing font doesn't, update it
-          // This fixes fonts that were registered before storage upload was working
-          if (fontData.storagePath) {
-            const { data: existingFont } = await supabase
-              .from('fonts')
-              .select('storage_path')
-              .eq('id', existing.id)
-              .single();
+          // Update storage path and metadata fields if we have new data
+          // This ensures fonts scanned before metadata extraction get updated
+          const { data: existingFont } = await supabase
+            .from('fonts')
+            .select('storage_path, weight_name, is_variable, is_italic, category')
+            .eq('id', existing.id)
+            .single();
 
-            if (!existingFont?.storage_path) {
-              await supabase
-                .from('fonts')
-                .update({ storage_path: fontData.storagePath })
-                .eq('id', existing.id);
-              storageUpdated++;
-              storageUpdatedFontIds.push(existing.id);
-            }
+          const updateData = {};
+
+          // Update storage path if missing
+          if (!existingFont?.storage_path && fontData.storagePath) {
+            updateData.storage_path = fontData.storagePath;
+            storageUpdated++;
+            storageUpdatedFontIds.push(existing.id);
+          }
+
+          // Always update metadata if missing (regardless of storage_path)
+          if (!existingFont?.weight_name && fontData.weightName) {
+            updateData.weight_name = fontData.weightName;
+          }
+          if ((existingFont?.is_variable === null || existingFont?.is_variable === undefined) && fontData.isVariable !== undefined) {
+            updateData.is_variable = fontData.isVariable;
+          }
+          if ((existingFont?.is_italic === null || existingFont?.is_italic === undefined) && fontData.isItalic !== undefined) {
+            updateData.is_italic = fontData.isItalic;
+          }
+          if (!existingFont?.category && fontData.category) {
+            updateData.category = fontData.category;
+          }
+
+          // Apply updates if any
+          if (Object.keys(updateData).length > 0) {
+            await supabase
+              .from('fonts')
+              .update(updateData)
+              .eq('id', existing.id);
           }
 
           // Associate with device
@@ -238,6 +265,10 @@ export const useFontStore = create((set, get) => ({
               file_hash: fontData.fileHash,
               font_format: fontData.fontFormat,
               origin_device_id: deviceId || null,
+              weight_name: fontData.weightName || null,
+              is_variable: fontData.isVariable || false,
+              is_italic: fontData.isItalic || false,
+              category: fontData.category || null,
               metadata: fontData.metadata || {}
             })
             .select()

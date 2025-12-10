@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-const fontCapLogo = './FontCap-Type.svg';
+const fontCapLogo = '/FontCap-Type.svg';
 import { useAuthStore } from '../stores/authStore';
 import { useFontStore } from '../stores/fontStore';
 import { useDeviceStore } from '../stores/deviceStore';
@@ -104,10 +104,28 @@ const Header = () => {
   );
 };
 
+const operationIcons = {
+  scanning: (
+    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+    </svg>
+  ),
+  uploading: (
+    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+    </svg>
+  ),
+  downloading: (
+    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+    </svg>
+  ),
+};
+
 const operationLabels = {
-  scanning: { title: 'Scanning', icon: '◐' },
-  uploading: { title: 'Uploading', icon: '↑' },
-  downloading: { title: 'Downloading', icon: '↓' }
+  scanning: 'Scanning',
+  uploading: 'Uploading',
+  downloading: 'Downloading'
 };
 
 const ProgressBar = ({ hidden, onHide }) => {
@@ -115,35 +133,38 @@ const ProgressBar = ({ hidden, onHide }) => {
 
   if (!operationProgress.active || hidden) return null;
 
-  const config = operationLabels[operationProgress.type] || { title: 'Processing', icon: '○' };
+  const label = operationLabels[operationProgress.type] || 'Processing';
+  const icon = operationIcons[operationProgress.type] || operationIcons.scanning;
   const percentage = operationProgress.total > 0
     ? Math.round((operationProgress.current / operationProgress.total) * 100)
     : 0;
 
   return (
     <div className="fixed bottom-16 left-3 right-3 z-40 animate-slide-up">
-      <div className="floating-pill px-3 py-2.5">
+      <div className="bg-white/90 backdrop-blur-xl rounded-xl border border-black/[0.04] shadow-soft px-3 py-2.5">
         <div className="flex items-center justify-between mb-1.5">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <span className="text-xs">{config.icon}</span>
-            <span className="font-medium text-apple-text text-xs tracking-tight">{config.title}</span>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-6 h-6 rounded-md bg-accent/10 flex items-center justify-center flex-shrink-0 text-accent">
+              {icon}
+            </div>
+            <span className="font-medium text-apple-text text-xs tracking-tight">{label}</span>
             {operationProgress.currentFontName && (
-              <span className="text-apple-secondary text-xs truncate" title={operationProgress.currentFontName}>
-                — {operationProgress.currentFontName}
+              <span className="text-apple-tertiary text-xs truncate" title={operationProgress.currentFontName}>
+                {operationProgress.currentFontName}
               </span>
             )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-xs text-apple-secondary">
+            <span className="text-xs text-apple-secondary tabular-nums">
               {operationProgress.total > 0 ? `${operationProgress.current}/${operationProgress.total}` : '...'}
             </span>
-            <span className="text-xs font-semibold text-accent">{percentage}%</span>
+            <span className="text-xs font-semibold text-accent tabular-nums">{percentage}%</span>
             <button
               onClick={onHide}
-              className="text-apple-secondary hover:text-apple-text p-0.5 -mr-0.5 rounded hover:bg-black/[0.04] transition-colors"
+              className="w-5 h-5 rounded flex items-center justify-center text-apple-tertiary hover:text-apple-text hover:bg-black/[0.04] transition-colors"
               title="Hide"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -179,16 +200,16 @@ const Footer = () => {
   };
 
   const formatLastSync = () => {
-    if (!lastSync) return 'Never synced';
+    if (!lastSync) return 'Never';
     const date = new Date(lastSync);
     const now = new Date();
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
-    return date.toLocaleDateString();
+    if (diffMins < 1) return 'Now';
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h`;
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
   return (
@@ -197,25 +218,25 @@ const Footer = () => {
 
       {/* Floating Footer Pill */}
       <div className="fixed bottom-3 left-3 right-3 z-50">
-        <footer className="floating-pill h-10 px-3 flex items-center justify-between">
+        <footer className="bg-white/90 backdrop-blur-xl rounded-xl border border-black/[0.04] shadow-soft h-10 px-3 flex items-center justify-between">
           {/* Left side - Stats */}
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-2 text-xs min-w-0 overflow-hidden">
             <div className="flex items-center gap-1">
-              <span className="text-apple-text font-medium">{syncStats?.totalLocal || 0}</span>
-              <span className="text-apple-secondary">local</span>
+              <span className="text-apple-text font-medium tabular-nums">{syncStats?.totalLocal || 0}</span>
+              <span className="text-apple-tertiary">local</span>
             </div>
-            <span className="w-px h-2.5 bg-black/10" />
+            <span className="w-px h-2.5 bg-black/[0.08]" />
             <div className="flex items-center gap-1">
-              <span className="text-apple-text font-medium">{syncStats?.totalCloud || 0}</span>
-              <span className="text-apple-secondary">cloud</span>
+              <span className="text-apple-text font-medium tabular-nums">{syncStats?.totalCloud || 0}</span>
+              <span className="text-apple-tertiary">cloud</span>
             </div>
 
             {operationProgress.active && progressHidden && (
               <>
-                <span className="w-px h-2.5 bg-black/10" />
+                <span className="w-px h-2.5 bg-black/[0.08]" />
                 <button
                   onClick={() => setProgressHidden(false)}
-                  className="flex items-center gap-1 text-accent hover:text-accent-hover font-medium transition-colors"
+                  className="flex items-center gap-1 text-accent font-medium transition-colors"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse-soft" />
                   Progress
@@ -225,19 +246,19 @@ const Footer = () => {
           </div>
 
           {/* Right side - Sync */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-apple-secondary">{formatLastSync()}</span>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-xs text-apple-tertiary whitespace-nowrap">{formatLastSync()}</span>
             <button
               onClick={handleSync}
               disabled={syncing}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-accent/10 text-accent font-medium text-xs
-                         hover:bg-accent/20 disabled:opacity-50 transition-all duration-200 btn-press"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent/8 text-accent font-medium text-xs
+                         hover:bg-accent/12 disabled:opacity-50 transition-all duration-200 active:scale-[0.98]"
             >
               {syncing ? (
                 <>
                   <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
                   <span>Syncing</span>
                 </>

@@ -150,6 +150,30 @@ body {
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   }
 
+  /* Filter Pills - Minimal inline style */
+  .filter-pill {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium
+           text-apple-secondary rounded-full transition-all duration-200 ease-apple;
+  }
+
+  .filter-pill:hover {
+    @apply text-apple-text;
+    background: rgba(0,0,0,0.04);
+  }
+
+  .filter-pill.active {
+    @apply text-apple-text;
+    background: rgba(0,0,0,0.06);
+  }
+
+  .filter-pill-count {
+    @apply text-xs text-apple-tertiary tabular-nums;
+  }
+
+  .filter-pill.active .filter-pill-count {
+    @apply text-apple-secondary;
+  }
+
   /* Toggle Switch - iOS style */
   .toggle-switch {
     @apply relative inline-flex h-6 w-11 items-center rounded-full
@@ -224,6 +248,28 @@ body {
     background: linear-gradient(90deg, #e8e8ed 25%, #f0f0f5 50%, #e8e8ed 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
+  }
+
+  /* Font Card - New grid layout */
+  .font-card {
+    @apply relative bg-white rounded-2xl flex flex-col cursor-pointer
+           transition-all duration-200 ease-apple;
+    border: 1px solid rgba(0,0,0,0.04);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+    min-height: 140px;
+  }
+
+  .font-card:hover {
+    border-color: rgba(59, 130, 246, 0.3);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1), 0 8px 24px rgba(59, 130, 246, 0.08);
+    transform: translateY(-2px);
+  }
+
+  /* Font Tag - small pill badge */
+  .font-tag {
+    @apply inline-flex items-center px-2 py-0.5 text-2xs font-medium rounded-full;
+    background: rgba(0,0,0,0.05);
+    color: #6e6e73;
   }
 }
 
@@ -431,6 +477,62 @@ body {
 .upload-zone.active {
   border-color: #007AFF;
   background: rgba(0,122,255,0.04);
+}
+
+/* Minimal Upload Zone - Apple/Figma style */
+.upload-zone-minimal {
+  @apply flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl cursor-pointer
+         text-apple-secondary transition-all duration-200 ease-apple;
+  background: rgba(0,0,0,0.03);
+}
+
+.upload-zone-minimal:hover {
+  background: rgba(0,0,0,0.05);
+  @apply text-apple-text;
+}
+
+.upload-zone-minimal.active {
+  background: rgba(0,122,255,0.08);
+  @apply text-accent;
+}
+
+/* Action Button - Minimal Apple/Figma style */
+.action-btn {
+  @apply inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl
+         text-sm font-medium transition-all duration-200 ease-apple;
+}
+
+.action-btn:active {
+  transform: scale(0.98);
+}
+
+.action-btn:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.action-btn:disabled:active {
+  transform: none;
+}
+
+/* Secondary action - subtle background */
+.action-btn-secondary {
+  @apply text-apple-secondary;
+  background: rgba(0,0,0,0.03);
+}
+
+.action-btn-secondary:hover:not(:disabled) {
+  background: rgba(0,0,0,0.06);
+  @apply text-apple-text;
+}
+
+/* Primary action - accent tint */
+.action-btn-primary {
+  @apply text-accent;
+  background: rgba(0,122,255,0.08);
+}
+
+.action-btn-primary:hover:not(:disabled) {
+  background: rgba(0,122,255,0.12);
 }
 
 /* ============================================

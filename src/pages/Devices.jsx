@@ -85,8 +85,7 @@ const DeviceCard = ({ device, onDelete, onToggleSync, index }) => {
       {/* Remove button */}
       <button
         onClick={() => onDelete(device.id)}
-        className="w-full py-2 text-xs font-medium text-apple-secondary hover:text-status-error
-                   bg-black/[0.02] hover:bg-status-error/10 rounded-lg transition-all duration-200"
+        className="w-full action-btn action-btn-secondary !py-2 !text-xs text-apple-tertiary hover:text-status-error hover:bg-status-error/8"
       >
         Remove Device
       </button>
