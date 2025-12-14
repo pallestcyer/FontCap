@@ -37,7 +37,7 @@ function App() {
     return (
       <div className="min-h-screen bg-apple-bg flex items-center justify-center">
         <div className="text-center animate-fade-in-up">
-          <img src="/FontCap.svg" alt="FontCap" className="h-10 mx-auto mb-4 animate-pulse" />
+          <img src="./FontCap.svg" alt="FontCap" className="h-10 mx-auto mb-4 animate-pulse" />
           <p className="text-apple-secondary text-sm">Loading...</p>
         </div>
       </div>
