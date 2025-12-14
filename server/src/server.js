@@ -140,4 +140,12 @@ async function startServer() {
   }
 }
 
-startServer();
+// For Vercel serverless, export the app
+// For local development, start the server
+if (process.env.VERCEL) {
+  // Initialize database for serverless
+  initDatabase().catch(console.error);
+  module.exports = app;
+} else {
+  startServer();
+}

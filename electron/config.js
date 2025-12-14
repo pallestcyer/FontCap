@@ -28,9 +28,8 @@ const getApiUrl = () => {
     return 'http://127.0.0.1:3000/api';
   }
 
-  // Production default - should be overridden
-  // This should be configured during build or via environment variables
-  return process.env.PRODUCTION_API_URL || 'https://your-domain.com/api';
+  // Production API
+  return 'https://fontcap.com/api';
 };
 
 module.exports = {

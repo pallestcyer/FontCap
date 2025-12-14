@@ -63,7 +63,10 @@ class FontUploader {
           fontFormat: ext.substring(1).toUpperCase(),
           metadata: metadata
         },
-        { headers: this.getAuthHeaders() }
+        {
+          headers: this.getAuthHeaders(),
+          timeout: 30000 // 30 second timeout
+        }
       );
 
       const { uploadUrl, storagePath, contentType } = uploadUrlResponse.data;
@@ -75,7 +78,8 @@ class FontUploader {
           'Content-Length': fileBuffer.length
         },
         maxContentLength: Infinity,
-        maxBodyLength: Infinity
+        maxBodyLength: Infinity,
+        timeout: 120000 // 2 minute timeout for large files
       });
 
       // Step 3: Confirm upload with server
@@ -95,7 +99,10 @@ class FontUploader {
             originalName: fileName
           }
         },
-        { headers: this.getAuthHeaders() }
+        {
+          headers: this.getAuthHeaders(),
+          timeout: 30000 // 30 second timeout
+        }
       );
 
       return {
@@ -112,6 +119,24 @@ class FontUploader {
           error: 'Font already exists in your library',
           duplicate: true,
           fontId: error.response.data.fontId
+        };
+      }
+
+      // Handle timeout errors
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        console.error('Upload timeout:', fontPath);
+        return {
+          success: false,
+          error: 'Upload timed out. Please check your connection and try again.'
+        };
+      }
+
+      // Handle network errors
+      if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+        console.error('Network error:', error.code);
+        return {
+          success: false,
+          error: 'Cannot connect to server. Please check your internet connection.'
         };
       }
 
