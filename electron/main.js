@@ -68,6 +68,57 @@ async function getStableDeviceId() {
 
 let mainWindow;
 let tray;
+let deepLinkUrl = null; // Store deep link URL if app wasn't ready
+
+// Register custom protocol for deep linking (fontcap://)
+// This allows email confirmation links to open the app directly
+const PROTOCOL = 'fontcap';
+
+if (process.defaultApp) {
+  // Development: need to pass the script path
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  // Production: just register the protocol
+  app.setAsDefaultProtocolClient(PROTOCOL);
+}
+
+// Handle deep link URL
+function handleDeepLink(url) {
+  console.log('Deep link received:', url);
+
+  if (!url || !url.startsWith(`${PROTOCOL}://`)) return;
+
+  // Parse the URL to extract tokens
+  // Format: fontcap://auth/callback#access_token=...&refresh_token=...&type=...
+  try {
+    const urlObj = new URL(url);
+    const hash = urlObj.hash.substring(1); // Remove the #
+    const params = new URLSearchParams(hash);
+
+    const authData = {
+      access_token: params.get('access_token'),
+      refresh_token: params.get('refresh_token'),
+      type: params.get('type'), // 'signup', 'recovery', 'magiclink'
+      expires_in: params.get('expires_in'),
+    };
+
+    if (authData.access_token) {
+      // If window exists, send the auth data
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('deep-link-auth', authData);
+      } else {
+        // Store for when window is ready
+        deepLinkUrl = authData;
+      }
+    }
+  } catch (error) {
+    console.error('Error parsing deep link:', error);
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -210,9 +261,12 @@ ipcMain.handle('get-device-info', async () => {
   };
 });
 
-// Upload fonts to Supabase Storage
-ipcMain.handle('upload-fonts', async (event, { fonts, userId }) => {
+// Upload fonts to R2 Storage via presigned URLs
+ipcMain.handle('upload-fonts', async (event, { fonts, userId, authToken }) => {
   try {
+    if (authToken) {
+      fontUploader.setAuthToken(authToken);
+    }
     const results = await fontUploader.uploadFonts(fonts, userId, (progress) => {
       mainWindow.webContents.send('upload-progress', progress);
     });
@@ -312,9 +366,45 @@ async function handleScanFonts() {
   }
 }
 
+// macOS: Handle deep link when app is already running
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  handleDeepLink(url);
+});
+
+// Windows/Linux: Handle deep link via second-instance
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine) => {
+    // Someone tried to run a second instance, focus our window
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+    // Windows/Linux: deep link URL is in commandLine
+    const url = commandLine.find(arg => arg.startsWith(`${PROTOCOL}://`));
+    if (url) handleDeepLink(url);
+  });
+}
+
 app.whenReady().then(() => {
   createWindow();
   createTray();
+
+  // Send any stored deep link auth data once window is ready
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (deepLinkUrl) {
+      mainWindow.webContents.send('deep-link-auth', deepLinkUrl);
+      deepLinkUrl = null;
+    }
+  });
+
+  // macOS: Check if app was launched via deep link
+  const launchUrl = process.argv.find(arg => arg.startsWith(`${PROTOCOL}://`));
+  if (launchUrl) handleDeepLink(launchUrl);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

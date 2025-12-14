@@ -5,6 +5,7 @@ const fs = require('fs').promises;
 const crypto = require('crypto');
 const { supabase } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const r2Storage = require('../services/r2Storage');
 
 const router = express.Router();
 
@@ -258,6 +259,167 @@ router.post('/bulk-register', authenticateToken, async (req, res) => {
   }
 });
 
+// Get presigned URL for uploading a font to R2
+router.post('/upload-url', authenticateToken, async (req, res) => {
+  try {
+    const { fileHash, fileName, fileSize, fontFormat, metadata } = req.body;
+
+    if (!fileHash || !fileName) {
+      return res.status(400).json({ error: 'fileHash and fileName are required' });
+    }
+
+    // Check if font already exists for this user
+    const { data: existing } = await supabase
+      .from('fonts')
+      .select('id')
+      .eq('file_hash', fileHash)
+      .eq('user_id', req.user.userId)
+      .single();
+
+    if (existing) {
+      return res.status(409).json({
+        error: 'Font already exists in your library',
+        fontId: existing.id,
+        duplicate: true
+      });
+    }
+
+    // Generate unique storage path
+    const uniqueId = crypto.randomUUID();
+    const ext = path.extname(fileName).toLowerCase();
+    const storagePath = `${req.user.userId}/${uniqueId}${ext}`;
+    const contentType = r2Storage.getMimeType(ext);
+
+    // Generate presigned upload URL
+    const result = await r2Storage.generateUploadUrl(storagePath, contentType);
+
+    if (!result.success) {
+      console.error('Failed to generate upload URL:', result.error);
+      return res.status(500).json({ error: 'Failed to generate upload URL' });
+    }
+
+    res.json({
+      uploadUrl: result.uploadUrl,
+      storagePath,
+      contentType
+    });
+  } catch (error) {
+    console.error('Error generating upload URL:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Confirm font upload completed and save metadata
+router.post('/confirm-upload', authenticateToken, async (req, res) => {
+  try {
+    const {
+      storagePath,
+      fileHash,
+      fileName,
+      fontName,
+      fontFamily,
+      fileSize,
+      fontFormat,
+      deviceId,
+      metadata
+    } = req.body;
+
+    if (!storagePath || !fileHash) {
+      return res.status(400).json({ error: 'storagePath and fileHash are required' });
+    }
+
+    // Verify file exists in R2
+    const existsResult = await r2Storage.fileExists(storagePath);
+    if (!existsResult.exists) {
+      return res.status(400).json({ error: 'File not found in storage. Upload may have failed.' });
+    }
+
+    // Check for duplicate again (race condition protection)
+    const { data: existing } = await supabase
+      .from('fonts')
+      .select('id')
+      .eq('file_hash', fileHash)
+      .eq('user_id', req.user.userId)
+      .single();
+
+    if (existing) {
+      // Clean up the uploaded file since it's a duplicate
+      await r2Storage.deleteFile(storagePath);
+      return res.status(409).json({
+        error: 'Font already exists in your library',
+        fontId: existing.id,
+        duplicate: true
+      });
+    }
+
+    // Save font metadata to database
+    const fontData = {
+      user_id: req.user.userId,
+      font_name: fontName || fileName,
+      font_family: fontFamily || '',
+      storage_path: storagePath,
+      file_size: fileSize || 0,
+      file_hash: fileHash,
+      font_format: fontFormat || path.extname(fileName).substring(1).toUpperCase(),
+      origin_device_id: deviceId || null,
+      metadata: metadata || {}
+    };
+
+    const { data: font, error: insertError } = await supabase
+      .from('fonts')
+      .insert(fontData)
+      .select()
+      .single();
+
+    if (insertError) {
+      // Clean up uploaded file on database error
+      await r2Storage.deleteFile(storagePath);
+      throw insertError;
+    }
+
+    // Associate with device if provided
+    if (deviceId) {
+      await supabase
+        .from('device_fonts')
+        .upsert({
+          device_id: deviceId,
+          font_id: font.id,
+          was_present_at_scan: true,
+          is_system_font: true
+        }, { onConflict: 'device_id,font_id' });
+
+      // Queue sync to other devices
+      const { data: otherDevices } = await supabase
+        .from('devices')
+        .select('id')
+        .eq('user_id', req.user.userId)
+        .neq('id', deviceId)
+        .eq('is_active', true);
+
+      if (otherDevices) {
+        for (const device of otherDevices) {
+          await supabase
+            .from('sync_queue')
+            .insert({
+              device_id: device.id,
+              font_id: font.id,
+              action: 'install',
+              status: 'pending'
+            });
+        }
+      }
+    }
+
+    res.status(201).json({
+      font,
+      message: 'Font uploaded successfully'
+    });
+  } catch (error) {
+    console.error('Error confirming upload:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Check if font hash exists
 router.get('/check-hash/:hash', authenticateToken, async (req, res) => {
   try {
@@ -294,9 +456,13 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Font not found' });
     }
 
-    // Delete from storage if there's a file
+    // Delete from R2 storage if there's a file
     if (font.storage_path) {
-      await supabase.storage.from('fonts').remove([font.storage_path]);
+      const deleteResult = await r2Storage.deleteFile(font.storage_path);
+      if (!deleteResult.success) {
+        console.warn('Failed to delete file from R2:', deleteResult.error);
+        // Continue with database deletion even if storage deletion fails
+      }
     }
 
     // Delete from database
@@ -332,19 +498,16 @@ router.get('/:id/download', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Font file not available' });
     }
 
-    // Get signed URL for download
-    const { data: signedUrl, error: urlError } = await supabase.storage
-      .from('fonts')
-      .createSignedUrl(font.storage_path, 3600); // 1 hour expiry
+    // Get signed URL for download from R2
+    const result = await r2Storage.generateDownloadUrl(font.storage_path);
 
-    if (urlError) {
-      console.error('Signed URL error:', urlError);
+    if (!result.success) {
+      console.error('Failed to generate download URL:', result.error);
       return res.status(500).json({ error: 'Failed to generate download URL' });
     }
 
-    // Redirect to signed URL or stream the file
     res.json({
-      downloadUrl: signedUrl.signedUrl,
+      downloadUrl: result.downloadUrl,
       fontName: font.font_name
     });
   } catch (error) {

@@ -434,14 +434,35 @@ body {
 /* Nav Icon */
 .nav-icon {
   @apply transition-all duration-200 ease-apple;
+  border: 1px solid transparent;
 }
 
 .nav-icon:hover {
-  transform: scale(1.05);
+  color: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15), 0 4px 12px rgba(59, 130, 246, 0.1);
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .nav-icon:active {
   transform: scale(0.95);
+}
+
+/* Logo Link - Blue hover with glow */
+.logo-link {
+  @apply transition-all duration-200 ease-apple rounded-md;
+  display: flex;
+  align-items: center;
+}
+
+.logo-link:hover img {
+  /* Convert black to blue (#3b82f6) and add subtle glow */
+  filter: brightness(0) saturate(100%) invert(42%) sepia(93%) saturate(1352%) hue-rotate(200deg) brightness(100%) contrast(101%)
+          drop-shadow(0 0 4px rgba(59, 130, 246, 0.35));
+}
+
+.logo-link:active {
+  transform: scale(0.96);
 }
 
 /* Download Button Bounce */
