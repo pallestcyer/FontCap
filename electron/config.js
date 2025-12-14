@@ -7,11 +7,11 @@ const { app } = require('electron');
 
 // Supabase configuration - these are bundled with the app
 // The anon key is safe to expose (it's meant for client-side use with RLS)
-// The service role key is used only in the main process for uploads
+// Service role key no longer needed in Electron - uploads go through server to R2
 const SUPABASE_CONFIG = {
-  url: 'https://pwzucewvklsmthzbvqct.supabase.co',
-  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3enVjZXd2a2xzbXRoemJ2cWN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM1Njg1NjksImV4cCI6MjA3OTE0NDU2OX0.0CeH2EC6imKioWkHBSInXn692KhCMepwDuNCu58NmeY',
-  serviceRoleKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3enVjZXd2a2xzbXRoemJ2cWN0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzU2ODU2OSwiZXhwIjoyMDc5MTQ0NTY5fQ.PJuXtqfz7T0KhA6W6dei9dYGjyk1Jhq3safovrAttFQ',
+  url: 'https://hzeeswpnzjqebrceotpp.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6ZWVzd3BuempxZWJyY2VvdHBwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM1NzY5NjcsImV4cCI6MjA3OTE1Mjk2N30.r_Un3HB3IIeTZmuEgbJfvYH7PyAmsGGpGq9Bd75dIl0',
+  serviceRoleKey: '', // No longer needed - uploads go through server
 };
 
 // Get API URL from environment or use default

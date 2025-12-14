@@ -1,6 +1,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const { initDatabase, supabase } = require('./config/database');
 
 const authRoutes = require('./routes/auth');
@@ -11,6 +12,42 @@ const settingsRoutes = require('./routes/settings');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Rate limiting configurations
+const createRateLimiter = (windowMs, max, message) => rateLimit({
+  windowMs,
+  max,
+  message: { error: message },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Use user ID from auth if available, otherwise use default IP handling
+  keyGenerator: (req) => req.user?.userId || req.ip,
+  // Disable validation warnings (we intentionally use userId or IP)
+  validate: false,
+});
+
+// Strict limiter for auth endpoints (prevent brute force)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // 20 attempts per 15 min
+  message: { error: 'Too many auth attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Standard limiter for font operations (generous for bulk sync)
+const fontLimiter = createRateLimiter(
+  60 * 1000, // 1 minute
+  200, // 200 requests per minute
+  'Too many requests, please slow down'
+);
+
+// Upload limiter (slightly more restrictive)
+const uploadLimiter = createRateLimiter(
+  60 * 1000, // 1 minute
+  100, // 100 uploads per minute
+  'Too many upload requests, please slow down'
+);
 
 // CORS Configuration - whitelist specific origins
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -41,11 +78,13 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-app.use('/api/auth', authRoutes);
-app.use('/api/fonts', fontRoutes);
-app.use('/api/devices', deviceRoutes);
-app.use('/api/sync', syncRoutes);
-app.use('/api/settings', settingsRoutes);
+// Apply rate limiters to routes
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/fonts/upload-url', uploadLimiter); // Stricter limit for uploads
+app.use('/api/fonts', fontLimiter, fontRoutes);
+app.use('/api/devices', fontLimiter, deviceRoutes);
+app.use('/api/sync', fontLimiter, syncRoutes);
+app.use('/api/settings', fontLimiter, settingsRoutes);
 
 app.get('/api/health', async (req, res) => {
   const health = {

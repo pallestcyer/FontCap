@@ -136,4 +136,41 @@ export const useAuthStore = create((set, get) => ({
   getUser: () => get().user,
 
   getSession: () => get().session,
+
+  // Handle deep link authentication (email confirmation, magic links)
+  handleDeepLinkAuth: async (authData) => {
+    try {
+      const { access_token, refresh_token } = authData;
+
+      if (!access_token) {
+        console.error('No access token in deep link');
+        return { success: false, error: 'No access token provided' };
+      }
+
+      // Set the session using the tokens from the deep link
+      const { data, error } = await supabase.auth.setSession({
+        access_token,
+        refresh_token,
+      });
+
+      if (error) {
+        console.error('Error setting session from deep link:', error);
+        return { success: false, error: error.message };
+      }
+
+      if (data.session) {
+        set({
+          user: { id: data.session.user.id, email: data.session.user.email },
+          session: data.session,
+          isAuthenticated: true,
+        });
+        return { success: true };
+      }
+
+      return { success: false, error: 'Failed to establish session' };
+    } catch (error) {
+      console.error('Deep link auth error:', error);
+      return { success: false, error: error.message };
+    }
+  },
 }));

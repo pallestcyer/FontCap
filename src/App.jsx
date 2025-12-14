@@ -9,11 +9,28 @@ import Settings from './pages/Settings';
 import Layout from './components/Layout';
 
 function App() {
-  const { isAuthenticated, loading, initialize } = useAuthStore();
+  const { isAuthenticated, loading, initialize, handleDeepLinkAuth } = useAuthStore();
 
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  // Listen for deep link authentication (email confirmation, magic links)
+  useEffect(() => {
+    if (!window.electronAPI?.onDeepLinkAuth) return;
+
+    const cleanup = window.electronAPI.onDeepLinkAuth(async (authData) => {
+      console.log('Received deep link auth:', authData.type);
+      const result = await handleDeepLinkAuth(authData);
+      if (result.success) {
+        console.log('Deep link authentication successful');
+      } else {
+        console.error('Deep link authentication failed:', result.error);
+      }
+    });
+
+    return cleanup;
+  }, [handleDeepLinkAuth]);
 
   // Show loading state while checking auth
   if (loading) {

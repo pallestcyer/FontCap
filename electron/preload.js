@@ -13,8 +13,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   getDeviceInfo: () => ipcRenderer.invoke('get-device-info'),
 
-  // Font upload and download (Supabase Storage)
-  uploadFonts: (fonts, userId) => ipcRenderer.invoke('upload-fonts', { fonts, userId }),
+  // Font upload and download (R2 Storage via presigned URLs)
+  uploadFonts: (fonts, userId, authToken) => ipcRenderer.invoke('upload-fonts', { fonts, userId, authToken }),
 
   downloadAndInstallFont: (params) => ipcRenderer.invoke('download-and-install-font', params),
 
@@ -42,5 +42,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('upload-progress');
     ipcRenderer.on('upload-progress', (event, data) => callback(data));
     return () => ipcRenderer.removeAllListeners('upload-progress');
+  },
+
+  // Deep link auth callback (email confirmation, magic links, etc.)
+  onDeepLinkAuth: (callback) => {
+    ipcRenderer.removeAllListeners('deep-link-auth');
+    ipcRenderer.on('deep-link-auth', (event, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners('deep-link-auth');
   },
 });

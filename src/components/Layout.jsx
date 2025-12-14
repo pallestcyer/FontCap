@@ -63,7 +63,9 @@ const Header = () => {
     <header className="h-12 glass-header px-3 flex items-center justify-between sticky top-0 z-40">
       {/* Logo and sync status */}
       <div className="flex items-center gap-2">
-        <img src={fontCapLogo} alt="FontCap" className="h-4" />
+        <Link to="/" className="logo-link">
+          <img src={fontCapLogo} alt="FontCap" className="h-4 transition-all duration-200" />
+        </Link>
         <span
           className={`w-2 h-2 ${getSyncStatusColor()} rounded-full ${isSyncing ? 'animate-sync-pulse' : ''}`}
           title={isSyncing ? 'Sync needed' : 'Up to date'}

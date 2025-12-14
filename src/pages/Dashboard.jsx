@@ -152,7 +152,7 @@ export default function Dashboard() {
   } = useFontStore();
   const { currentDevice, registerDevice } = useDeviceStore();
   const { addNotification } = useNotificationStore();
-  const { user } = useAuthStore();
+  const { user, session } = useAuthStore();
   const [uploading, setUploading] = useState(false);
   const [scanning, setScanning] = useState(false);
 
@@ -278,7 +278,13 @@ export default function Dashboard() {
             path: font.filePath,
             metadata: {
               fontName: font.fontName,
-              fontFamily: font.fontFamily
+              fontFamily: font.fontFamily,
+              fileHash: font.fileHash,
+              deviceId: deviceResult.device.id,
+              weightName: font.weightName,
+              isVariable: font.isVariable,
+              isItalic: font.isItalic,
+              category: font.category
             }
           }));
 
@@ -287,7 +293,7 @@ export default function Dashboard() {
 
           let uploadResult = { success: false, uploaded: 0, failed: 0, results: [] };
           try {
-            uploadResult = await window.electronAPI.uploadFonts(fontsToUpload, user?.id);
+            uploadResult = await window.electronAPI.uploadFonts(fontsToUpload, user?.id, session?.access_token);
           } catch (uploadError) {
             console.warn('Storage upload failed:', uploadError);
           }
