@@ -65,3 +65,4 @@ FontCap3d-back*.png
 FontCap-Type.svg
 FontCap.svg
 FontCapLogomark.svg
+server/.env.example
