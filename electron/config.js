@@ -29,7 +29,7 @@ const getApiUrl = () => {
   }
 
   // Production API
-  return 'https://fontcap.com/api';
+  return 'https://api.fontcap.com/api';
 };
 
 module.exports = {
