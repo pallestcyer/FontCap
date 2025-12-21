@@ -61,7 +61,7 @@ This removes the quarantine flag that macOS applies to downloaded apps. You only
 - **Multi-Device Management** — See all your devices and their sync status
 - **Offline Support** — Fonts already on your device work without internet
 - **System Tray** — Runs quietly in the background
-- **Privacy First** — Your fonts are stored in your own Supabase project
+- **Privacy First** — Your fonts are stored in your own cloud storage (Cloudflare R2)
 
 ### Supported Font Formats
 
@@ -76,8 +76,8 @@ TTF • OTF • WOFF • WOFF2
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   MacBook   │     │   Supabase  │     │  Windows PC │
-│             │────▶│   Storage   │◀────│             │
+│   MacBook   │     │  Cloudflare │     │  Windows PC │
+│             │────▶│     R2      │◀────│             │
 │  500 fonts  │     │             │     │  500 fonts  │
 └─────────────┘     └─────────────┘     └─────────────┘
 ```
@@ -98,6 +98,7 @@ FontCap is fully open source. You can run your own instance with your own Supaba
 
 - Node.js 18+
 - A [Supabase](https://supabase.com) account (free tier works great)
+- A [Cloudflare](https://cloudflare.com) account with R2 enabled (free tier includes 10GB)
 
 ### Setup
 
@@ -112,11 +113,12 @@ FontCap is fully open source. You can run your own instance with your own Supaba
    server/src/config/schema-supabase-auth.sql
    ```
 
-3. **Create Storage Bucket**
+3. **Create Cloudflare R2 Bucket**
 
-   In **Storage**, create a bucket named `fonts` with the following settings:
-   - Public: No
-   - File size limit: 50MB
+   In your Cloudflare dashboard:
+   - Go to **R2** and create a bucket named `fonts`
+   - Go to **Manage R2 API Tokens** and create a token with read/write access
+   - Note your Account ID, Access Key ID, and Secret Access Key
 
 4. **Configure Environment**
 
@@ -124,12 +126,24 @@ FontCap is fully open source. You can run your own instance with your own Supaba
    git clone https://github.com/pallestcyer/FontCap.git
    cd FontCap
    cp .env.example .env
+   cp server/.env.example server/.env
    ```
 
    Edit `.env` with your Supabase credentials (found in Settings → API):
    ```env
    VITE_SUPABASE_URL=https://your-project.supabase.co
    VITE_SUPABASE_ANON_KEY=your-anon-key
+   ```
+
+   Edit `server/.env` with your Supabase and R2 credentials:
+   ```env
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_ANON_KEY=your-anon-key
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+   R2_ACCOUNT_ID=your-cloudflare-account-id
+   R2_ACCESS_KEY_ID=your-r2-access-key-id
+   R2_SECRET_ACCESS_KEY=your-r2-secret-access-key
+   R2_BUCKET_NAME=fonts
    ```
 
 5. **Run Locally**
@@ -155,7 +169,7 @@ FontCap is fully open source. You can run your own instance with your own Supaba
 | Desktop App | Electron 28 |
 | Frontend | React 18 + Tailwind CSS |
 | State | Zustand |
-| Backend | Supabase (Auth, Database, Storage) |
+| Backend | Supabase (Auth, Database) + Cloudflare R2 (Storage) |
 | Build | Vite + electron-builder |
 
 ## Project Structure
@@ -219,10 +233,10 @@ npm run electron:start   # Electron app
 ## FAQ
 
 **Q: Is FontCap free?**
-A: Yes! FontCap is open source and free to use. You'll need a Supabase account for cloud storage (free tier includes 1GB).
+A: Yes! FontCap is open source and free to use. You'll need a Supabase account (for auth/database) and Cloudflare R2 (for storage) — both have generous free tiers.
 
 **Q: Where are my fonts stored?**
-A: In your own Supabase project's storage. You have full control over your data.
+A: In Cloudflare R2 cloud storage. Your account data is in Supabase. You have full control over your data.
 
 **Q: Does FontCap modify my system fonts?**
 A: FontCap only installs fonts to your user font directory. It never modifies or deletes system fonts.
